@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     WORKER_CONCURRENCY: int = 4
     WORKER_BATCH_SIZE: int = 10
 
+    DETECTOR_BACKEND: str = "mock"
     DETECTION_CONFIDENCE_THRESHOLD: float = 0.7
     FRAME_EXTRACTION_FPS: int = 2
 

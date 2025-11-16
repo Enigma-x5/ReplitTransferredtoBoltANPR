@@ -8,16 +8,16 @@ echo ""
 # Check if .env exists
 if [ ! -f .env ]; then
     echo "📝 Creating .env from template..."
-    cp .env.example .env
+    cp .env.template .env
 
     # Generate JWT secret
     JWT_SECRET=$(openssl rand -base64 32)
 
     # Update JWT_SECRET in .env
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' "s/JWT_SECRET=.*/JWT_SECRET=$JWT_SECRET/" .env
+        sed -i '' "s|JWT_SECRET=.*|JWT_SECRET=$JWT_SECRET|" .env
     else
-        sed -i "s/JWT_SECRET=.*/JWT_SECRET=$JWT_SECRET/" .env
+        sed -i "s|JWT_SECRET=.*|JWT_SECRET=$JWT_SECRET|" .env
     fi
 
     echo "✅ .env created with secure JWT_SECRET"
@@ -25,6 +25,18 @@ if [ ! -f .env ]; then
     echo ""
 else
     echo "✅ .env already exists"
+
+    # Check if JWT_SECRET needs to be generated
+    if grep -q "JWT_SECRET=CHANGE_ME" .env; then
+        echo "📝 Generating JWT_SECRET..."
+        JWT_SECRET=$(openssl rand -base64 32)
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "s|JWT_SECRET=.*|JWT_SECRET=$JWT_SECRET|" .env
+        else
+            sed -i "s|JWT_SECRET=.*|JWT_SECRET=$JWT_SECRET|" .env
+        fi
+        echo "✅ JWT_SECRET generated"
+    fi
     echo ""
 fi
 
@@ -44,8 +56,39 @@ if [ "$MODE" == "selfhost" ]; then
     echo "📊 Running database migrations..."
     # Check if migrations dir exists
     if [ -d "migrations" ]; then
-        docker-compose run --rm api bash -c "psql $DATABASE_URL -f /app/migrations/001_initial_schema.sql" || true
+        docker-compose run --rm api bash -c "psql \$DATABASE_URL -f /app/migrations/001_initial_schema.sql 2>/dev/null" || echo "   (Migration may have already been applied)"
     fi
+
+    echo "👤 Creating admin user..."
+    docker-compose run --rm api python -c "
+import asyncio
+from src.database import AsyncSessionLocal
+from src.models.user import User
+from src.auth import get_password_hash
+from src.config import settings
+from sqlalchemy import select
+
+async def create_admin():
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(User).where(User.email == settings.ADMIN_EMAIL))
+        existing_user = result.scalar_one_or_none()
+
+        if not existing_user:
+            admin_user = User(
+                email=settings.ADMIN_EMAIL,
+                username=settings.ADMIN_USERNAME,
+                hashed_password=get_password_hash(settings.ADMIN_PASSWORD),
+                is_active=True,
+                role='admin'
+            )
+            db.add(admin_user)
+            await db.commit()
+            print('   ✅ Admin user created')
+        else:
+            print('   ✅ Admin user already exists')
+
+asyncio.run(create_admin())
+" 2>/dev/null || echo "   (Admin creation skipped - will be created on first API start)"
 
     echo ""
     echo "✅ Self-hosted infrastructure ready!"
@@ -53,7 +96,7 @@ if [ "$MODE" == "selfhost" ]; then
     echo "Next steps:"
     echo "  1. docker-compose up -d api worker"
     echo "  2. Open http://localhost:8000/docs"
-    echo "  3. Login with admin@example.com / changeme123"
+    echo "  3. Login with ${ADMIN_EMAIL:-admin@example.com} / ${ADMIN_PASSWORD:-changeme123}"
 
 elif [ "$MODE" == "supabase" ]; then
     echo "☁️  Supabase mode detected"

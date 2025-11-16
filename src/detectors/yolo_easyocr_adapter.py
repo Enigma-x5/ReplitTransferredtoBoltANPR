@@ -50,13 +50,14 @@ def process_video(video_path: str, camera_id: str = None) -> Generator[Dict[str,
     """
     Process a video file and yield detection dicts.
     Each yielded dict should include keys:
-      - plate (str)
-      - normalized_plate (str)
-      - confidence (float)
-      - bbox (dict x1,y1,x2,y2)
-      - frame_no (int)
-      - captured_at (float) # seconds since start of file
-      - crop_path (str) local path saved to disk (worker will upload)
+      - plate (str): Raw OCR text
+      - normalized_plate (str): Cleaned plate text (alphanumeric only)
+      - confidence (float): Detection confidence (0-1)
+      - bbox (dict): Bounding box with x1,y1,x2,y2
+      - frame_no (int): Frame number in video
+      - captured_at (datetime): Timestamp of detection
+      - crop (numpy array): Cropped image data (worker will upload to storage)
+      - camera_id (str): Camera identifier
     """
     _init_models()
     cap = cv2.VideoCapture(video_path)
@@ -118,12 +119,8 @@ def process_video(video_path: str, camera_id: str = None) -> Generator[Dict[str,
                     prob = float(best[2])
 
                     cleaned = _clean_plate_text(text)
-                    timestamp_sec = frame_no / fps
-
-                    # Save crop for audit / labeling
-                    crop_name = f"{Path(video_path).stem}_f{frame_no}_c{saved}.jpg"
-                    crop_path = str(CROP_DIR / crop_name)
-                    cv2.imwrite(crop_path, crop)
+                    from datetime import datetime
+                    captured_at = datetime.utcnow()
                     saved += 1
 
                     yield {
@@ -132,8 +129,8 @@ def process_video(video_path: str, camera_id: str = None) -> Generator[Dict[str,
                         "confidence": prob,
                         "bbox": {"x1": int(x1), "y1": int(y1), "x2": int(x2), "y2": int(y2)},
                         "frame_no": int(frame_no),
-                        "captured_at": float(timestamp_sec),
-                        "crop_path": crop_path,
+                        "captured_at": captured_at,
+                        "crop": crop,
                         "camera_id": camera_id,
                     }
     finally:

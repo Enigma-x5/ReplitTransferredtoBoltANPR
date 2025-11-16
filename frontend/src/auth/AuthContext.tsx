@@ -32,14 +32,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     const response = await apiClient.login(email, password);
-    
+
     tokenStorage.setToken(response.access_token);
-    
-    // Extract role from token or fetch user info
-    // For now, assume we get user info from a separate call or decode JWT
-    const userInfo = { email, role: 'clerk' as 'admin' | 'clerk' }; // Will be enhanced
+
+    // Determine role based on email
+    // Admin user gets admin role, all others get clerk role
+    const role: 'admin' | 'clerk' = email === 'admin@example.com' ? 'admin' : 'clerk';
+    const userInfo = { email, role };
     tokenStorage.setUserInfo(userInfo);
-    
+
     setIsAuthenticated(true);
     setUser(userInfo);
   };
