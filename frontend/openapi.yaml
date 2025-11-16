@@ -1,0 +1,676 @@
+openapi: 3.0.3
+info:
+  title: ANPR City API
+  version: "0.2.0"
+  description: |
+    API for ANPR ingestion, detection events, human-in-the-loop corrections,
+    BOLO alerts, camera management, licensing and usage metering.
+servers:
+  - url: https://api.yourdomain.example.com/api
+    description: Production server
+  - url: http://localhost:8000/api
+    description: Local dev
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # common
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+
+    # Auth & User
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        username:
+          type: string
+        role:
+          type: string
+          enum:
+            - admin
+            - clerk
+        created_at:
+          type: string
+          format: date-time
+
+    AuthToken:
+      type: object
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+
+    # Camera
+    Camera:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        lat:
+          type: number
+          format: double
+        lon:
+          type: number
+          format: double
+        heading:
+          type: number
+          nullable: true
+        rtsp_url:
+          type: string
+          nullable: true
+        active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    CreateCamera:
+      type: object
+      required:
+        - name
+        - lat
+        - lon
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        lat:
+          type: number
+        lon:
+          type: number
+        heading:
+          type: number
+        rtsp_url:
+          type: string
+        active:
+          type: boolean
+          default: true
+
+    # Upload / Job
+    UploadJob:
+      type: object
+      properties:
+        job_id:
+          type: string
+        status:
+          type: string
+          enum: [queued, processing, done, failed]
+        created_at:
+          type: string
+          format: date-time
+
+    # Event / Detection
+    Event:
+      type: object
+      properties:
+        id:
+          type: string
+        plate:
+          type: string
+        normalized_plate:
+          type: string
+        confidence:
+          type: number
+        camera_id:
+          type: string
+        bbox:
+          type: object
+          properties:
+            x1: { type: integer }
+            y1: { type: integer }
+            x2: { type: integer }
+            y2: { type: integer }
+        captured_at:
+          type: string
+          format: date-time
+        frame_no:
+          type: integer
+        crop_path:
+          type: string
+        review_state:
+          type: string
+          enum: [unreviewed, confirmed, corrected, rejected]
+        created_at:
+          type: string
+          format: date-time
+
+    EventList:
+      type: object
+      properties:
+        total:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Event'
+
+    # Feedback / Corrections
+    Correction:
+      type: object
+      properties:
+        id:
+          type: string
+        event_id:
+          type: string
+        original_plate:
+          type: string
+        corrected_plate:
+          type: string
+        corrected_by:
+          type: string
+        confidence_before:
+          type: number
+        comments:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    CreateCorrection:
+      type: object
+      required:
+        - corrected_plate
+      properties:
+        corrected_plate:
+          type: string
+        comments:
+          type: string
+
+    # BOLO
+    BOLO:
+      type: object
+      properties:
+        id:
+          type: string
+        plate_pattern:
+          type: string
+        description:
+          type: string
+        created_by:
+          type: string
+        active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    # License / Metering
+    License:
+      type: object
+      properties:
+        id:
+          type: string
+        customer_id:
+          type: string
+        features:
+          type: object
+        expires_at:
+          type: string
+          format: date-time
+        camera_limit:
+          type: integer
+
+    ActivateLicenseReq:
+      type: object
+      properties:
+        license_key:
+          type: string
+        node_id:
+          type: string
+
+    ActivateLicenseResp:
+      type: object
+      properties:
+        activated:
+          type: boolean
+        expires_at:
+          type: string
+          format: date-time
+        features:
+          type: object
+
+paths:
+  /auth/login:
+    post:
+      summary: Login and receive JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthToken'
+        '401':
+          description: invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users:
+    post:
+      summary: Create user (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+    get:
+      summary: List users (admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+
+  /cameras:
+    post:
+      summary: Add camera (admin)
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCamera'
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Camera'
+    get:
+      summary: List cameras
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: camera list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Camera'
+  /cameras/{camera_id}:
+    parameters:
+      - name: camera_id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Get camera
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: camera
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Camera'
+    patch:
+      summary: Update camera (admin)
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCamera'
+      responses:
+        '200':
+          description: updated
+  /uploads:
+    post:
+      summary: Upload MP4 for processing (multipart)
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                camera_id:
+                  type: string
+        required: true
+      responses:
+        '201':
+          description: job queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadJob'
+        '400':
+          description: bad request
+  /jobs/{job_id}:
+    parameters:
+      - in: path
+        name: job_id
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Get job status
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: job status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadJob'
+
+  /events:
+    get:
+      summary: Search events (plate, camera, time range)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: plate
+          in: query
+          schema:
+            type: string
+        - name: normalized
+          in: query
+          schema:
+            type: boolean
+        - name: camera_id
+          in: query
+          schema:
+            type: string
+        - name: from_ts
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to_ts
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventList'
+
+  /events/{event_id}:
+    parameters:
+      - in: path
+        name: event_id
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Get single event (including crop link)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: event
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+
+    post:
+      summary: Add a comment to event (auditing)
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                comment:
+                  type: string
+      responses:
+        '200':
+          description: comment added
+
+  /events/{event_id}/confirm:
+    post:
+      summary: Confirm the detection (human verifies correct plate)
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                confirmed_by:
+                  type: string
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: confirmed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+
+  /events/{event_id}/correction:
+    post:
+      summary: Submit correction for an event (human-corrected plate)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCorrection'
+      responses:
+        '201':
+          description: correction created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Correction'
+
+  /feedback/pending:
+    get:
+      summary: List pending feedback items (unreviewed events)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: list of events for review
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventList'
+
+  /feedback/export:
+    post:
+      summary: Request export of labeled data (for retraining)
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                from_ts:
+                  type: string
+                  format: date-time
+                to_ts:
+                  type: string
+                  format: date-time
+                min_confidence:
+                  type: number
+      responses:
+        '202':
+          description: export requested (async)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  export_id:
+                    type: string
+
+  /bolos:
+    post:
+      summary: Create BOLO (Be On the Lookout)
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BOLO'
+      responses:
+        '201':
+          description: created
+    get:
+      summary: List BOLOs
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BOLO'
+
+  /licenses/activate:
+    post:
+      summary: Activate a license key on a node (on-prem)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivateLicenseReq'
+      responses:
+        '200':
+          description: activation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivateLicenseResp'
+
+  /licenses/usage:
+    post:
+      summary: Report usage (metering ping from client)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                node_id:
+                  type: string
+                camera_count:
+                  type: integer
+                timestamp:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: acknowledged
+
+  /admin/health:
+    get:
+      summary: System health (admin)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: health ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+
+security:
+  - bearerAuth: []

@@ -1,0 +1,42 @@
+Thanks for the setup so far — backend, Redis, and frontend are running, and I can see the preview. I’m running into two practical problems now:
+________________________________________
+1) Frontend preview keeps auto-refreshing
+•	In the Replit “Preview” tab, the frontend keeps refreshing / reloading by itself so often that it’s very hard to even type in the login credentials.
+•	Please debug and fix this. Concretely:
+o	Check the Vite dev server logs to see if the dev server is restarting repeatedly or if HMR is causing reload loops.
+o	Verify the current Vite config (host, port, hmr.clientPort, allowedHosts) is correct for Replit and isn’t causing repeated reconnect/reload behavior.
+o	If necessary, relax or disable HMR for the Replit environment so that the preview stays stable and doesn’t keep reloading while I type.
+o	After fixing, please summarize what you changed in replit.md so I know how the dev server is configured.
+________________________________________
+2) Login: email vs username confusion
+•	You created an admin user via migrations / script and checked:
+•	SELECT email, username, role FROM users WHERE email = 'admin@example.com';
+so I assume the admin row has email='admin@example.com', some username (probably admin), and role admin.
+•	In the frontend, the login screen currently shows a “username” field that uses type="email", so the browser expects something like an email address.
+•	When I try to log in, I get “Invalid credentials”, even after experimenting with changing the username column directly in the DB.
+Please do the following:
+1.	Confirm the backend auth behavior:
+o	Check the login endpoint and tell me explicitly whether it authenticates by email or by username column.
+o	Confirm which request field the frontend is sending (e.g. email or username) to the backend.
+2.	Make the frontend form match the backend:
+o	If the backend expects email (which seems likely), then:
+	Make the label say “Email” instead of “Username”.
+	Ensure the field name sent in the POST body is actually email and not username.
+	Keep type="email" if that’s what the backend expects; that’s fine.
+o	If the backend genuinely uses username, then:
+	Change the login form accordingly (field name + label) and avoid HTML type="email" unless it really is an email.
+3.	Align the admin user with env vars:
+o	Ensure the admin user in the users table matches the env vars:
+	ADMIN_EMAIL
+	ADMIN_USERNAME
+	ADMIN_PASSWORD
+o	Please update replit.md to clearly state:
+	“Default admin login (selfhost / Replit mode): EMAIL = <value>, PASSWORD = <value>”
+o	Also briefly document how I can safely change these values later (e.g., update env vars + rerun the admin creation logic).
+4.	Check my manual DB edit didn’t break anything:
+o	I manually changed the username field in the DB once. Please verify that this hasn’t broken the admin account.
+o	If needed, reset that row so that it cleanly matches the env values you’re using (ADMIN_EMAIL, ADMIN_USERNAME, ADMIN_PASSWORD).
+Once you’ve done this, please:
+•	Confirm exactly which credentials I should use to log in (email + password).
+•	Confirm that the preview no longer auto-refreshes constantly so I can type without interruptions.
+
