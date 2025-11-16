@@ -1,0 +1,38 @@
+# --- Core Framework ---
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+
+# --- Config & Validation ---
+pydantic==2.5.3
+pydantic-settings==2.1.0
+python-dotenv==1.0.0
+email-validator==2.2.0
+
+# --- Async & DB ---
+sqlalchemy[asyncio]==2.0.25
+asyncpg==0.29.0
+alembic==1.13.1
+
+# --- Auth ---
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# --- Background Tasks / Cache ---
+redis==5.0.1
+rq==1.16.1
+
+# --- File Ops / Local Object Storage ---
+minio==7.2.3
+
+# --- Computer Vision (optional for ANPR) ---
+opencv-python-headless==4.8.1.78
+ffmpeg-python==0.2.0
+
+# --- Monitoring ---
+prometheus-client==0.19.0
+structlog==24.1.0
+
+# --- Utility ---
+python-dateutil==2.8.2
+pytz==2023.3
+bcrypt==4.1.2

@@ -1,0 +1,17 @@
+{
+  "name": "anpr-city-api",
+  "version": "0.2.0",
+  "description": "Production-ready FastAPI backend for ANPR with human-in-the-loop corrections",
+  "private": true,
+  "scripts": {
+    "dev": "docker-compose up",
+    "dev:supabase": "docker-compose -f docker-compose.supabase.yml up",
+    "build": "docker build -t anpr-city-api:latest .",
+    "test": "pytest tests/ -v",
+    "test:coverage": "pytest tests/ --cov=src --cov-report=html",
+    "lint": "ruff check src/ && black --check src/",
+    "format": "black src/ tests/",
+    "migrate": "alembic upgrade head",
+    "migrate:create": "alembic revision --autogenerate -m"
+  }
+}

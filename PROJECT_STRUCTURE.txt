@@ -1,0 +1,201 @@
+ANPR City API - Project Structure
+==================================
+
+anpr-city-api/
+│
+├── 📄 Configuration Files
+│   ├── .env.example                 # Environment variables template
+│   ├── .gitignore                   # Git ignore rules
+│   ├── .dockerignore                # Docker build ignore rules
+│   ├── requirements.txt             # Python dependencies
+│   ├── pyproject.toml              # Python project config (ruff, black, mypy)
+│   ├── package.json                # NPM scripts for convenience
+│   ├── Makefile                    # Common development commands
+│   └── alembic.ini                 # Alembic migration config
+│
+├── 🐳 Docker & Deployment
+│   ├── Dockerfile                   # Container image definition
+│   ├── docker-compose.yml          # Self-hosted mode stack
+│   └── docker-compose.supabase.yml # Supabase mode stack
+│
+├── 🔄 CI/CD
+│   └── .github/
+│       └── workflows/
+│           └── ci.yml              # GitHub Actions pipeline
+│
+├── 💾 Database
+│   ├── alembic/                    # Alembic migration tool
+│   │   ├── env.py                  # Migration environment
+│   │   └── script.py.mako         # Migration template
+│   └── migrations/                 # SQL migrations
+│       └── 001_initial_schema.sql  # Initial database schema
+│
+├── 🐍 Source Code
+│   └── src/
+│       ├── __init__.py
+│       ├── main.py                 # FastAPI application entrypoint
+│       ├── worker.py               # Background job processor
+│       ├── config.py               # Settings management
+│       ├── database.py             # Database connection & session
+│       ├── auth.py                 # JWT authentication logic
+│       ├── logging_config.py       # Structured logging setup
+│       │
+│       ├── 📊 models/              # SQLAlchemy ORM Models
+│       │   ├── __init__.py
+│       │   ├── user.py             # Users & roles
+│       │   ├── camera.py           # Camera registry
+│       │   ├── upload.py           # Video uploads & jobs
+│       │   ├── event.py            # Detection events & corrections
+│       │   ├── bolo.py             # BOLO alerts & matches
+│       │   ├── license.py          # License keys & usage
+│       │   ├── export.py           # Data export jobs
+│       │   └── audit.py            # Audit logs
+│       │
+│       ├── 📋 schemas/             # Pydantic Request/Response Schemas
+│       │   ├── __init__.py
+│       │   ├── auth.py             # Login, token schemas
+│       │   ├── user.py             # User create/response
+│       │   ├── camera.py           # Camera CRUD schemas
+│       │   ├── upload.py           # Upload job response
+│       │   ├── event.py            # Event search/response
+│       │   ├── correction.py       # Correction create/response
+│       │   ├── bolo.py             # BOLO create/response
+│       │   └── license.py          # License activation schemas
+│       │
+│       ├── 🛣️  api/                 # API Route Handlers
+│       │   ├── __init__.py
+│       │   ├── auth.py             # POST /auth/login
+│       │   ├── users.py            # User management (admin)
+│       │   ├── cameras.py          # Camera CRUD
+│       │   ├── uploads.py          # Video upload
+│       │   ├── jobs.py             # Job status queries
+│       │   ├── events.py           # Event search & details
+│       │   ├── feedback.py         # Review workflow & export
+│       │   ├── bolos.py            # BOLO management
+│       │   ├── licenses.py         # License activation
+│       │   └── admin.py            # Admin endpoints (health)
+│       │
+│       ├── 🔧 services/            # Business Logic Services
+│       │   ├── storage.py          # Storage abstraction (S3/MinIO/Supabase)
+│       │   ├── queue.py            # Redis queue service
+│       │   └── detector_adapter.py # Video processing orchestrator
+│       │
+│       └── 🤖 detectors/           # ML Detection Adapters
+│           └── yolo_easyocr_adapter.py  # ⚠️  STUB - Needs real implementation
+│
+├── 🧪 Tests
+│   └── tests/
+│       ├── __init__.py
+│       ├── conftest.py             # Test fixtures & configuration
+│       ├── test_auth.py            # Authentication tests
+│       ├── test_cameras.py         # Camera API tests
+│       └── test_events.py          # Event API tests
+│
+├── 📜 Scripts
+│   └── scripts/
+│       ├── bootstrap.sh            # Initial setup script
+│       └── test-api.sh             # API smoke test script
+│
+└── 📚 Documentation
+    ├── README.md                   # Main documentation & setup guide
+    ├── PROJECT_SUMMARY.md          # This file - project overview
+    ├── PROJECT_STRUCTURE.txt       # Project file tree (this file)
+    ├── DEVELOPER_HANDOFF.md        # Technical guide for developers
+    ├── DEVELOPMENT_CHECKLIST.md    # TODO list & roadmap
+    ├── API_QUICK_REFERENCE.md      # API usage examples
+    ├── SUPABASE_SETUP.md           # Supabase configuration guide
+    └── OPERATIONAL_CONSIDERATIONS.md # Production operations guide
+
+Key Components:
+===============
+
+1. API Server (src/main.py)
+   - FastAPI application
+   - REST API with OpenAPI docs
+   - JWT authentication
+   - CORS middleware
+   - Prometheus metrics
+
+2. Worker (src/worker.py)
+   - Background job processor
+   - Pulls jobs from Redis queue
+   - Downloads videos from storage
+   - Runs detector on frames
+   - Saves events to database
+   - Checks BOLO matches
+   - Sends notifications
+
+3. Database (PostgreSQL)
+   - 11 tables (users, cameras, uploads, events, etc.)
+   - SQLAlchemy async ORM
+   - Alembic migrations
+   - Comprehensive indexes
+
+4. Storage (S3/MinIO/Supabase)
+   - Raw video uploads
+   - Crop images from detections
+   - Presigned URL generation
+   - Two buckets: anpr-uploads, anpr-crops
+
+5. Queue (Redis)
+   - Job queue for video processing
+   - Simple FIFO queue
+   - Worker pulls jobs with BRPOP
+
+6. Detector (STUB)
+   - Currently returns mock data
+   - Needs YOLO + EasyOCR integration
+   - See src/detectors/yolo_easyocr_adapter.py
+
+Dependencies:
+=============
+
+Core:
+- fastapi==0.109.0
+- sqlalchemy[asyncio]==2.0.25
+- asyncpg==0.29.0
+- redis==5.0.1
+- pydantic==2.5.3
+
+Auth:
+- python-jose[cryptography]==3.3.0
+- passlib[bcrypt]==1.7.4
+
+Storage:
+- boto3==1.34.34
+- minio==7.2.3
+- supabase==2.3.4
+
+Processing:
+- opencv-python-headless==4.9.0.80
+- ffmpeg-python==0.2.0
+
+Monitoring:
+- prometheus-client==0.19.0
+- structlog==24.1.0
+
+Testing:
+- pytest==7.4.4
+- pytest-asyncio==0.23.3
+- httpx==0.26.0
+
+Statistics:
+===========
+
+Total Files: 65+
+Source Files: 45 Python files
+Documentation: 8 markdown files
+Configuration: 12 config files
+Lines of Code: ~5,000 lines
+
+API Endpoints: 20+
+Database Tables: 11
+Test Files: 5
+
+Docker Images: 1
+Docker Compose Configs: 2
+CI/CD Pipelines: 1
+
+Code Coverage: ~40% (needs improvement)
+
+Status: ✅ Core implementation complete, ready for detector integration
