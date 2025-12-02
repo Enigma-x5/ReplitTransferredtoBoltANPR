@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "bash", "web", "python-3.11", "postgresql-16"]
+modules = ["nodejs-20", "python-3.12", "bash", "web"]
 [agent]
 expertMode = true
 
@@ -20,11 +20,11 @@ args = "redis-server"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "frontend"
+args = "backend"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "backend"
+args = "frontend"
 
 [[workflows.workflow]]
 name = "redis-server"
@@ -33,6 +33,18 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "redis-server --bind 127.0.0.1 --port 6379"
+
+[workflows.workflow.metadata]
+outputType = "console"
+
+[[workflows.workflow]]
+name = "backend"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python -m uvicorn src.main:app --host 0.0.0.0 --port 8000"
+waitForPort = 8000
 
 [workflows.workflow.metadata]
 outputType = "console"
@@ -49,18 +61,6 @@ waitForPort = 5000
 [workflows.workflow.metadata]
 outputType = "webview"
 
-[[workflows.workflow]]
-name = "backend"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python -m uvicorn src.main:app --host 0.0.0.0 --port 8000"
-waitForPort = 8000
-
-[workflows.workflow.metadata]
-outputType = "console"
-
 [[ports]]
 localPort = 5000
 externalPort = 80
@@ -68,3 +68,44 @@ externalPort = 80
 [[ports]]
 localPort = 8000
 externalPort = 8000
+
+[[ports]]
+localPort = 40141
+externalPort = 3000
+
+[userenv]
+
+[userenv.shared]
+JWT_SECRET = "gZncAUU_nZln990elsLLao3-m-jpOzJb-9lwxZeg4-Y"
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRATION_MINUTES = "10080"
+REDIS_URL = "redis://localhost:6379/0"
+MODE = "selfhost"
+API_HOST = "0.0.0.0"
+API_PORT = "8000"
+API_RELOAD = "True"
+DEBUG = "True"
+STORAGE_BUCKET = "anpr-uploads"
+STORAGE_CROPS_BUCKET = "anpr-crops"
+MINIO_ENDPOINT = "localhost:9000"
+MINIO_ACCESS_KEY = "minioadmin"
+MINIO_SECRET_KEY = "minioadmin"
+MINIO_SECURE = "False"
+MINIO_BUCKET = "anpr-uploads"
+DETECTOR_BACKEND = "mock"
+WORKER_CONCURRENCY = "4"
+WORKER_BATCH_SIZE = "10"
+DETECTION_CONFIDENCE_THRESHOLD = "0.7"
+FRAME_EXTRACTION_FPS = "2"
+CORS_ORIGINS = "*"
+PROMETHEUS_ENABLED = "True"
+LOG_LEVEL = "INFO"
+LOG_FORMAT = "json"
+ADMIN_EMAIL = "admin@example.com"
+ADMIN_PASSWORD = "changeme123"
+ADMIN_USERNAME = "admin"
+LICENSE_VALIDATION_URL = ""
+WEBHOOK_URL = ""
+EMAIL_SMTP_HOST = ""
+EMAIL_SMTP_PORT = "587"
+EMAIL_FROM = "alerts@yourdomain.com"
