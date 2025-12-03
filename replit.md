@@ -24,13 +24,13 @@ Frontend (React + Vite) → Backend API (FastAPI) → PostgreSQL Database
 5. **Worker** - Background job processor (planned)
 
 ### Admin Access
-- **Email**: admin@example.com
+- **Email**: admin@admin.com
 - **Username**: admin
-- **Password**: `admin123` (stored in `ADMIN_PASSWORD` secret)
+- **Password**: Admin@123
 
 ### Environment Configuration
 - **Mode**: `selfhost` (using local/Replit resources)
-- **Database**: Replit PostgreSQL (DATABASE_URL automatically set)
+- **Database**: Supabase PostgreSQL (shared with Bolt for synchronized development)
 - **Redis**: Local Redis server
 - **Storage**: MinIO for file uploads
 - **CORS**: Allows all origins (development mode)
@@ -250,9 +250,15 @@ See `docs/READY_SWITCH.md` for detailed instructions on:
 
 ## Recent Changes
 
-**November 16, 2025 (Latest)**
+**December 3, 2025 (Latest)**
+- ✅ **FIXED: Database schema** - Ran migrations to create all 11 tables in Supabase
+- ✅ **FIXED: Admin credentials** - Created admin user with email `admin@admin.com`, password `Admin@123`
+- ✅ **FIXED: Backend config** - Added `extra="ignore"` to allow frontend env vars without breaking backend
+- ✅ **Database sync** - Now using shared Supabase database with Bolt for synchronized development
+- ✅ All workflows running and stable
+
+**November 16, 2025**
 - ✅ **FIXED: Frontend-Backend API connectivity** - Configured Vite proxy to forward `/api` requests from frontend (port 5000) to backend (port 8000), enabling proper API communication in both development and production environments
-- ✅ Login credentials confirmed: email `admin@example.com`, password `admin123`
 - ✅ All workflows running and stable
 
 **November 15, 2025**
