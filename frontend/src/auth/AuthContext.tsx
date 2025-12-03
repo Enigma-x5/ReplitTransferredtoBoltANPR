@@ -1,6 +1,13 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { jwtDecode } from 'jwt-decode';
 import { apiClient } from '@/api/client';
 import { tokenStorage } from './tokenStorage';
+
+interface JwtPayload {
+  sub: string;
+  role: 'admin' | 'clerk';
+  exp: number;
+}
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -18,13 +25,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<{ email?: string; role?: 'admin' | 'clerk' } | null>(null);
 
   useEffect(() => {
-    // Check for existing token on mount
     const token = tokenStorage.getToken();
     const userInfo = tokenStorage.getUserInfo();
     
-    if (token && userInfo && (userInfo.role === 'admin' || userInfo.role === 'clerk')) {
-      setIsAuthenticated(true);
-      setUser({ email: userInfo.email, role: userInfo.role });
+    if (token) {
+      try {
+        const decoded = jwtDecode<JwtPayload>(token);
+        const now = Date.now() / 1000;
+        
+        if (decoded.exp && decoded.exp > now) {
+          const role: 'admin' | 'clerk' = decoded.role === 'admin' ? 'admin' : 'clerk';
+          setIsAuthenticated(true);
+          setUser({ email: userInfo?.email, role });
+        } else {
+          tokenStorage.clearToken();
+          setIsAuthenticated(false);
+          setUser(null);
+        }
+      } catch {
+        tokenStorage.clearToken();
+        setIsAuthenticated(false);
+        setUser(null);
+      }
     }
     
     setIsLoading(false);
@@ -35,9 +57,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     tokenStorage.setToken(response.access_token);
 
-    // Determine role based on email
-    // Admin user gets admin role, all others get clerk role
-    const role: 'admin' | 'clerk' = email === 'admin@example.com' ? 'admin' : 'clerk';
+    const decoded = jwtDecode<JwtPayload>(response.access_token);
+    const role: 'admin' | 'clerk' = decoded.role === 'admin' ? 'admin' : 'clerk';
     const userInfo = { email, role };
     tokenStorage.setUserInfo(userInfo);
 

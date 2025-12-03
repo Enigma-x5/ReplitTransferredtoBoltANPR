@@ -13,5 +13,8 @@
     "format": "black src/ tests/",
     "migrate": "alembic upgrade head",
     "migrate:create": "alembic revision --autogenerate -m"
+  },
+  "dependencies": {
+    "jwt-decode": "^4.0.0"
   }
 }
