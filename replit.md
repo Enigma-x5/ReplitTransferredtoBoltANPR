@@ -251,6 +251,9 @@ See `docs/READY_SWITCH.md` for detailed instructions on:
 ## Recent Changes
 
 **December 3, 2025 (Latest)**
+- ✅ **FIXED: Frontend login issue** - AuthContext now decodes JWT token to get role from backend instead of hardcoding based on email. This allows any admin user to login (not just admin@example.com)
+- ✅ **FIXED: Token validation** - Frontend now validates JWT expiration on mount and clears auth state if token is expired/invalid
+- ✅ **FIXED: Error display** - Login page now shows actual backend error messages instead of generic fallback
 - ✅ **FIXED: Database schema** - Ran migrations to create all 11 tables in Supabase
 - ✅ **FIXED: Admin credentials** - Created admin user with email `admin@admin.com`, password `Admin@123`
 - ✅ **FIXED: Backend config** - Added `extra="ignore"` to allow frontend env vars without breaking backend
