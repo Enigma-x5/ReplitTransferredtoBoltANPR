@@ -1,0 +1,243 @@
+## Title
+
+**Debug + fix frontend login: network error → connection refused → update config, test, and escalate**
+
+---
+
+## Priority
+
+High — login flow broken for all users. Must reproduce, fix, and prove fix with artifacts.
+
+---
+
+## Context (short)
+
+From user (Dave): Browser shows `AxiosError: Network Error` and `net::ERR_CONNECTION_REFUSED` for `http://localhost:8000/auth/login` when trying to log in as `admin@admin.com`. Replit preview cannot reach `localhost:8000`. Frontend also had `withCredentials: false` in the request. The backend may be running but possibly bound to wrong interface/port and/or frontend baseURL is wrong. Your job: reproduce, fix, test, and if not fixed, attempt your own deeper fixes and document everything.
+
+---
+
+## Deliverables (attach these files to the task)
+
+1. `devtools-console.log` (plain text) — full console output while reproducing.
+2. `login-request.har` — exported HAR for the single login request.
+3. `server-access.log` — server logs covering attempt times.
+4. `auth-debug.log` — any temporary auth debug logs produced (incoming password, stored password) — ensure temporary and remove after.
+5. `curl-test-output.txt` — responses from curl tests against public URL.
+6. `git-branch` name used and short commit diffs (or links to PR).
+7. Short summary `result.md` with one-paragraph diagnosis, steps taken, and final status (fixed / not fixed + reason).
+
+---
+
+## Step-by-step instructions (run in order)
+
+### 1) Create a working branch
+
+```bash
+git checkout -b debug/login-fix
+```
+
+### 2) Reproduce exactly and capture artifacts
+
+* Start the server in Replit. Note the server log output. Capture a screenshot or copy the “Listening on …” line.
+* Open the app in Replit preview (the public URL that Replit provides).
+* In a real browser (not only the embedded preview), open DevTools → Console and Network → Preserve log. Attempt login with:
+
+  * **email:** [admin@admin.com](mailto:admin@admin.com)
+  * **password:** use the plaintext you set for testing (or if hashed in DB, use the plain equivalent after hashing).
+* Save:
+
+  * Console output → `devtools-console.log`.
+  * Export the single login request as HAR → `login-request.har`.
+* From Replit shell, capture server logs while test is performed → `server-access.log` (filter by timestamp).
+
+**Stop here and attach these artifacts before moving on.**
+
+---
+
+### 3) Immediate checks (fix if failing)
+
+If `Request URL` in HAR or DevTools shows `localhost:8000` or `127.0.0.1:8000`, this is the culprit. Fix the following **immediately**:
+
+#### A — Ensure server listens on `0.0.0.0` and uses `process.env.PORT`
+
+Edit server start (example Node/Express):
+
+```js
+const PORT = process.env.PORT || 8000;
+app.listen(PORT, '0.0.0.0', () => console.log(`Server listening on 0.0.0.0:${PORT}`));
+```
+
+Commit: `git add . && git commit -m "server: bind 0.0.0.0 and use process.env.PORT"`
+
+#### B — Set FRONTEND ↔ BACKEND baseURL via env
+
+In Replit environment variables (not in repo):
+
+* `REACT_APP_API_URL` = `https://<your-repl-backend-url>` (use the public Replit URL for the backend)
+  If using Next/Vite/other adjust `NEXT_PUBLIC_API_URL` / `VITE_API_URL` accordingly.
+
+In frontend code (client.ts / api client) set:
+
+```ts
+const API_BASE = process.env.REACT_APP_API_URL || window.location.origin;
+export const api = axios.create({
+  baseURL: API_BASE,
+  withCredentials: true, // required if using cookie-based auth
+  timeout: 15000,
+});
+```
+
+Commit the code change (if it’s not environment-only): `git commit -m "client: use REACT_APP_API_URL and enable withCredentials"`
+
+#### C — Rebuild/restart server and client
+
+* Restart the Replit run. Ensure server prints the `Server listening...` line.
+* Rebuild the frontend if your stack requires it.
+
+---
+
+### 4) Curl tests against public URL (must run)
+
+Replace `<public-repl-backend-url>` with Replit server URL:
+
+```bash
+curl -i -X POST 'https://<public-repl-backend-url>/auth/login' \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@admin.com","password":"<TEST_PASS>"}' > curl-test-output.txt
+```
+
+Attach `curl-test-output.txt`. If this returns 200 and a token or cookie, backend is reachable.
+
+---
+
+### 5) If curl works but browser still fails → Fix CORS & cookies
+
+Edit backend CORS settings to explicitly allow the frontend origin and credentials.
+
+Node/Express example:
+
+```js
+import cors from 'cors';
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'https://<your-repl-frontend-url>';
+app.use(cors({
+  origin: FRONTEND_ORIGIN,
+  credentials: true,
+}));
+```
+
+Cookie settings example:
+
+```js
+res.cookie('token', token, {
+  httpOnly: true,
+  secure: true,           // Replit previews are https
+  sameSite: 'none',       // if cross-site required
+  maxAge: 1000 * 60 * 60 * 24,
+});
+```
+
+Commit and restart. Re-run a browser login attempt, capture HAR and console logs again.
+
+---
+
+### 6) If backend returns 200 but UI still shows “Invalid credentials”
+
+Open the login code and check the success condition. Typical pitfalls:
+
+* Frontend expects `{ success: true }` but backend returns `{ token: '...' }`. Adjust the frontend to use the correct fields:
+
+```ts
+const res = await api.post('/auth/login', { email, password });
+const data = res.data;
+if (data && (data.token || data.success)) {
+  // success
+}
+```
+
+Ensure token is stored and Authorization header added:
+
+```ts
+localStorage.setItem('token', data.token);
+api.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
+```
+
+Commit minimal fix, restart, retest.
+
+---
+
+### 7) Add temporary debug logs (only for debugging; remove after)
+
+If still failing, add guarded debug logs in auth flow:
+
+```js
+if (process.env.DEBUG_AUTH === 'true') {
+  console.log('[AUTH DEBUG] incoming password:', req.body.password);
+  console.log('[AUTH DEBUG] stored password:', user.password);
+}
+```
+
+Set `DEBUG_AUTH=true` in Replit env for the test run. Capture `auth-debug.log` (grep the recent timestamps). **Important:** DO NOT commit plaintext logs or leave DEBUG_AUTH on after debugging. Remove or set to false and commit.
+
+---
+
+### 8) If none of the above fixes the problem — autonomous escalation (replit should continue)
+
+If the login still fails after performing steps 1–7, then perform the following deeper actions **without waiting for approvals** and document everything:
+
+1. **Run a minimal HTML/JS reproducer** that calls the same public URL (create `minimal-reproducer.html` with fetch/axios and attempt login). Save results. This rules out framework-related bundling issues.
+2. **Verify server bindings & firewall**: run `ss -ltnp` or `netstat -ltnp` in Replit shell to show listening ports and processes. Attach output.
+3. **Try alternate auth method**: Temporarily alter backend auth to accept a “bypass” test header (only in debug branch) so you can isolate frontend vs backend:
+
+   ```js
+   // if DEBUG_AUTH_BYPASS header present, accept login for test user
+   if (req.headers['x-debug-auth-bypass'] === 'true' && req.body.email === 'admin@admin.com') {
+     // return a fake token and 200
+   }
+   ```
+
+   Use this to see if frontend can receive/parse a successful response.
+4. **If cookies fail due to SameSite/secure issues**, switch to returning JSON token for a short debug cycle and see if frontend can store and use the token. Example change (debug only):
+
+   ```js
+   return res.json({ token });
+   ```
+5. **Check reverse-proxy / rewrite**: If builder or preview proxy rewrites paths, add a temporary endpoint `/ping` that returns 200 and test fetch from frontend to `https://<public>/ping`. If that fails, the proxy is the issue.
+6. **If you find the cause, implement minimal, safe fix** and record the patch with explanation.
+
+For each autonomous action above, create a small commit and clearly label it as `debug:` or `temp-debug:` and add a note in the PR describing that it must be reverted or hardened before production.
+
+---
+
+## Final reporting (mandatory)
+
+When you finish one of:
+
+* **Fixed** — attach all deliverables. Include commit/PR links and one-sentence description of root cause and fix.
+* **Not fixed** — attach all logs, the reproducer, outputs of `ss/netstat`, and a precise list of next-level steps you attempted and why they failed. Include any hypotheses (e.g., preview proxy blocking, incorrect origin mismatch, server not bound to 0.0.0.0) and recommend who/what to contact (Replit support or infra) if it appears to be a platform issue.
+
+Write `result.md` with:
+
+* One-line root cause (or primary suspected cause).
+* Exact code diff or env change required.
+* Safety notes (what to revert, what not to commit).
+* Suggested follow-up tasks (e.g., revert debug logs, harden cookie settings).
+
+---
+
+## Safety & cleanup (mandatory)
+
+* Remove any debug logging or bypass code from `main`/`production` branch — only keep in `debug/*` branches.
+* Remove any plaintext passwords you may have written into the DB; if you temporarily replaced a hashed password with plain text, restore the correct hash.
+* Close the task with a PR that has clear explanation and request to merge after review.
+
+---
+
+## If you’re Replit and you want to try your own approach (allowed)
+
+If after all prescribed steps above you still can’t fix it, you are authorised to:
+
+* Run a full `strace`/process monitor to find blocked syscalls.
+* Spin up an isolated container (or use Replit shell) to run the server and client separately and reproduce the issue cross-origin.
+* Contact Replit infra support with evidence showing `localhost:8000` refused while `0.0.0.0` shows server listening.
+
+Please make best-effort fixes and attach EVERYTHING.

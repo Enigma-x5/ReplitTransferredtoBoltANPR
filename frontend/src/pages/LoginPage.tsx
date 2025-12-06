@@ -25,14 +25,9 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      console.log('[LOGIN DEBUG] Attempting login with email:', email);
       await login(email, password);
-      console.log('[LOGIN DEBUG] Login successful, navigating to dashboard');
       navigate('/dashboard');
     } catch (err: any) {
-      console.error('[LOGIN DEBUG] Login failed:', err);
-      console.error('[LOGIN DEBUG] Error response:', err.response);
-      console.error('[LOGIN DEBUG] Error data:', err.response?.data);
       setError(err.response?.data?.detail || err.response?.data?.message || 'Invalid credentials. Please try again.');
     } finally {
       setIsLoading(false);

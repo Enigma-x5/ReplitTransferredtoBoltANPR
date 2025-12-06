@@ -250,7 +250,11 @@ See `docs/READY_SWITCH.md` for detailed instructions on:
 
 ## Recent Changes
 
-**December 3, 2025 (Latest)**
+**December 6, 2025 (Latest)**
+- ✅ **FIXED: Network Error on login** - Changed frontend `.env` to use `VITE_API_BASE_URL=/api` instead of `http://localhost:8000`. The old value caused the browser to try to connect to the user's local machine instead of going through the Vite proxy to reach the Replit backend.
+- ✅ **Updated demo credentials** - Login page now shows correct credentials: `admin@admin.com / Admin@123`
+
+**December 3, 2025**
 - ✅ **FIXED: Frontend login issue** - AuthContext now decodes JWT token to get role from backend instead of hardcoding based on email. This allows any admin user to login (not just admin@example.com)
 - ✅ **FIXED: Token validation** - Frontend now validates JWT expiration on mount and clears auth state if token is expired/invalid
 - ✅ **FIXED: Error display** - Login page now shows actual backend error messages instead of generic fallback
