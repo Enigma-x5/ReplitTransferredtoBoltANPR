@@ -1,0 +1,181 @@
+**Title:** Debug login flow — produce logs, network traces, test repro, and fix recommendations
+
+**Context:**
+User attempted login via frontend. Backend shows no errors in the Replit console but the frontend reports "invalid username/password". I (Dave) have direct DB access and temporarily replaced the hashed password with plain text for the test account — login still fails. Please follow the steps below, capture outputs/artifacts, and propose likely causes/fixes.
+
+---
+
+## Required artifacts (attach these to the ticket)
+
+1. Browser DevTools console log (text).
+2. Network tab HAR or exported request/response for the login request.
+3. Backend access logs covering the time of the request (with timestamps).
+4. Server-side auth log or stacktrace for the request (if any).
+5. A minimal reproducer: a single HTML/JS file that reproduces the login attempt and its network request (if possible).
+6. Short summary: one-paragraph explanation of what failed, and suggested code changes.
+
+---
+
+## Steps to run (execute in order)
+
+### A. Reproduce & capture browser-side evidence
+
+1. Start the app locally in Replit and open the frontend in a browser.
+2. Open DevTools → Console. Clear logs.
+3. Open DevTools → Network. Check “Preserve log”.
+4. Attempt login with the test user (email: **use the one Dave gave**, password: the plain-text you set).
+5. Export the single login request as HAR or copy the request/response details (headers, payload, response body, status code). Save console output. Attach both.
+
+**What I expect to see in the network request:**
+
+* Request URL and method (POST /api/login or similar).
+* Request Content-Type (application/json or form-encoded) and body.
+* Response status and response body (JSON or HTML).
+* Presence or absence of `Set-Cookie` header (if cookies used).
+
+---
+
+### B. Reproduce with curl/Postman (server perspective)
+
+From the Replit shell or an external terminal, run:
+
+```bash
+# Adjust URL, port and JSON body to your endpoint
+curl -i -X POST 'http://localhost:PORT/api/login' \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"TEST_EMAIL","password":"TEST_PLAIN_PASSWORD"}'
+```
+
+**Capture and attach the full response headers and body.**
+
+If the endpoint is at `/auth/login` or other, run with that path. If auth is via form-data, run with `--data "email=..&password=.." -H 'Content-Type: application/x-www-form-urlencoded'`.
+
+---
+
+### C. Check backend handling of password (critical)
+
+1. Open the auth/login controller and locate the password verification logic. Typical patterns:
+
+   * `bcrypt.compare(plaintext, hashedFromDB)`
+   * `hash(plaintext) === storedHash`
+   * direct equality `plaintext === storedPassword` (bad)
+2. If the code uses `bcrypt.compare()` (or Argon2, PBKDF2, etc.), confirm whether the DB record is hashed. If you replaced the DB value with plain text, `bcrypt.compare()` will fail because it expects a hashed value.
+3. If the code *first* hashes the incoming password and compares hashes, ensure the same salt/algorithm/iterations are used. If the backend re-hashes the incoming value with a new salt, it will never match.
+
+**If you replaced hashed with plain text for testing, either:**
+
+* Re-hash the test password using the same algorithm and store the hashed value in the DB OR
+* Temporarily modify the backend auth logic to log the incoming plaintext and DB value for this test (never leave this in prod).
+
+**Add this temporary debug logging (Node/Express + bcrypt example):**
+
+```js
+// example: before compare
+console.log('[AUTH DEBUG] incomingPassword:', req.body.password);
+console.log('[AUTH DEBUG] storedPassword:', user.password);
+```
+
+**Then run the curl test again and attach logs.**
+
+---
+
+### D. Check token/cookie behavior (if login returns token or cookie)
+
+1. If backend sets a cookie, verify `Set-Cookie` header is present and the client is configured to accept it:
+
+   * If cookies are used across origins, backend must set `Access-Control-Allow-Credentials: true` and the frontend must send `credentials: 'include'`.
+2. If auth uses a JWT returned in JSON, verify the JSON contains the token and the frontend stores it (localStorage/sessionStorage).
+3. Start a simple script to call a protected endpoint right after login (curl or axios). Example sequence:
+
+```bash
+# 1. Login with curl and capture token from response JSON
+curl -s -X POST 'http://localhost:8000/api/login' -H 'Content-Type: application/json' \
+  -d '{"email":"TEST_EMAIL","password":"TEST_PLAIN_PASSWORD"}' | jq .
+# 2. If token found:
+curl -i -X GET 'http://localhost:8000/api/protected' -H 'Authorization: Bearer <TOKEN_FROM_LOGIN>'
+```
+
+Attach results. If the protected endpoint returns 401 when passed what the frontend expected to pass, note mismatch.
+
+---
+
+### E. Check CORS & credentials (frontend-backend cross-origin issues)
+
+* In backend responses, verify `Access-Control-Allow-Origin` (should be the frontend origin or `*` in non-cookie setups).
+* If cookies are used, `Access-Control-Allow-Credentials: true` must be present and the frontend call must use `fetch(..., { credentials: 'include' })` or axios `withCredentials: true`.
+* If header `Access-Control-Allow-Origin: *` is present together with `Access-Control-Allow-Credentials: true`, this will fail — origin must be explicit, not `*`.
+
+---
+
+### F. Check environment config mismatch
+
+* Print `process.env` related to API endpoints in both dev and production builds (or the .env used by Replit run). Confirm `REACT_APP_API_URL` / `NEXT_PUBLIC_API_URL` (or similar) points to the backend you tested and not to a proxy.
+* If the frontend is built with a different baseURL, local dev proxy might be masking the real problem.
+
+---
+
+### G. Inspect frontend login code (what to look for)
+
+Open the login component and check:
+
+* The exact request path used (relative vs absolute).
+* How response is parsed (e.g., `res.json()` then `res.data.token`). Watch for mismatched key names (token vs accessToken).
+* How success/failure is decided — rely on HTTP status or response body? If the code checks `if (data.success === true)` but backend returns `{ ok: true }`, the UI will treat it as failure.
+* Where token is stored and whether a redirect or state update occurs after storing.
+
+Example problematic code to watch for:
+
+```js
+// BAD: assuming response contains `.success`
+if (res.success) { /* logged in */ } else { /* fail */ }
+// But actual backend returns { token: '...' } with 200 status
+```
+
+---
+
+## Quick, likely culprits to test first (ranked)
+
+1. **Hash mismatch** — you replaced hashed password with plain text but backend uses bcrypt/argon.compare. Fix: store hashed password or create a test that hashes the plain password correctly.
+2. **Frontend not storing / sending token** — UI thinks login failed because subsequent requests fail auth. Check localStorage/cookie immediately after login.
+3. **CORS / credentials** — cookies not set/received due to missing `credentials: 'include'` or wrong CORS headers.
+4. **Mismatched response shape** — frontend expecting `{ success: true }` but backend returns `{ token: '...' }`.
+5. **Silent JS error** — frontend code throws after successful response, preventing UI update. Check console for stacktrace.
+
+---
+
+## Safety & temporary debug guidance
+
+* Do not commit logging of plaintext passwords to the repository. Use temporary local logging and remove after debugging.
+* If you must change DB values to test, revert them after the test.
+* If you add a temporary `if (process.env.DEBUG_AUTH) console.log(...)` guard, ensure DEBUG_AUTH is only true in local testing.
+
+---
+
+## Expected deliverables (when done)
+
+* `devtools-console.log` file (text)
+* `login-har.json` or equivalent network capture
+* `replit-server-access.log` segment showing the request time
+* `auth-debug.log` showing incoming password and stored password (temporary)
+* `minimal-reproducer.html` (one-file sample that replicates the failing request)
+* Short diagnosis + exact fix (code diff or steps to fix)
+
+---
+
+## If the cause is password hashing mismatch — immediate fix snippet
+
+**Node + bcrypt: create and store a hashed test password**
+
+```js
+// run in node REPL or a small script
+const bcrypt = require('bcrypt');
+(async () => {
+  const plain = 'testpassword123';
+  const hash = await bcrypt.hash(plain, 10);
+  console.log('store this hash in DB for test user:', hash);
+})();
+```
+
+**Then update the `users` table password column with the printed hash.**
+
+---

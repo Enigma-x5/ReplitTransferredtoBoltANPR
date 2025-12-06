@@ -25,9 +25,14 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
+      console.log('[LOGIN DEBUG] Attempting login with email:', email);
       await login(email, password);
+      console.log('[LOGIN DEBUG] Login successful, navigating to dashboard');
       navigate('/dashboard');
     } catch (err: any) {
+      console.error('[LOGIN DEBUG] Login failed:', err);
+      console.error('[LOGIN DEBUG] Error response:', err.response);
+      console.error('[LOGIN DEBUG] Error data:', err.response?.data);
       setError(err.response?.data?.detail || err.response?.data?.message || 'Invalid credentials. Please try again.');
     } finally {
       setIsLoading(false);
@@ -120,13 +125,13 @@ export default function LoginPage() {
               <div className="flex items-center justify-between p-3 rounded-lg bg-background/50 border border-border/50">
                 <div className="space-y-0.5">
                   <p className="text-xs text-muted-foreground font-medium">Admin Account</p>
-                  <p className="text-sm font-mono">admin@example.com</p>
+                  <p className="text-sm font-mono">admin@admin.com / Admin@123</p>
                 </div>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8"
-                  onClick={() => copyToClipboard('admin@example.com')}
+                  onClick={() => copyToClipboard('admin@admin.com')}
                   type="button"
                 >
                   <Copy className="h-3.5 w-3.5" />
