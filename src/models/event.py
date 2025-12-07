@@ -37,7 +37,8 @@ class Event(Base):
     captured_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
     crop_path: Mapped[str] = mapped_column(Text, nullable=False)
     review_state: Mapped[ReviewState] = mapped_column(
-        SQLEnum(ReviewState, name="review_state"), default=ReviewState.UNREVIEWED, index=True
+        SQLEnum(ReviewState, name="review_state", values_callable=lambda obj: [e.value for e in obj]), 
+        default=ReviewState.UNREVIEWED, index=True
     )
     reviewed_by: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
