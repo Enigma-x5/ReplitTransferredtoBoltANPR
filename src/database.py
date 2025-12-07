@@ -5,7 +5,7 @@ from src.config import settings
 
 # Convert postgresql:// to postgresql+asyncpg:// if needed
 # Also strip out sslmode parameter as asyncpg doesn't support it
-database_url = settings.DATABASE_URL
+database_url = settings.effective_database_url
 if database_url.startswith("postgresql://"):
     database_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 # Remove sslmode query parameter (asyncpg handles SSL automatically)

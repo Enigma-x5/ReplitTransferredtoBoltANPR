@@ -16,11 +16,19 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRATION_MINUTES: int = 10080
 
-    DATABASE_URL: str
+    DATABASE_URL: str = ""
+    SUPABASE_DATABASE_URL: str = ""
 
     SUPABASE_URL: str = ""
     SUPABASE_KEY: str = ""
     SUPABASE_SERVICE_KEY: str = ""
+
+    @property
+    def effective_database_url(self) -> str:
+        """Get the database URL based on MODE setting."""
+        if self.MODE == "supabase" and self.SUPABASE_DATABASE_URL:
+            return self.SUPABASE_DATABASE_URL
+        return self.DATABASE_URL
 
     REDIS_URL: str = "redis://localhost:6379/0"
 
