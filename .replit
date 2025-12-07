@@ -70,7 +70,7 @@ localPort = 8000
 externalPort = 8000
 
 [[ports]]
-localPort = 41929
+localPort = 33785
 externalPort = 3000
 
 [userenv]
@@ -80,7 +80,7 @@ JWT_SECRET = "gZncAUU_nZln990elsLLao3-m-jpOzJb-9lwxZeg4-Y"
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_MINUTES = "10080"
 REDIS_URL = "redis://localhost:6379/0"
-MODE = "supabase"
+MODE = "selfhost"
 API_HOST = "0.0.0.0"
 API_PORT = "8000"
 API_RELOAD = "True"
