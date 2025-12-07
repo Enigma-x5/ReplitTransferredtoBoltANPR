@@ -251,6 +251,8 @@ See `docs/READY_SWITCH.md` for detailed instructions on:
 ## Recent Changes
 
 **December 7, 2025 (Latest)**
+- ✅ **FIXED: Events page crash** - Changed camera filter dropdown to use "all" as value instead of empty string (Radix UI requirement), with proper conversion for API requests
+- ✅ **FIXED: review_state enum mismatch** - Added `values_callable` to SQLEnum configuration so SQLAlchemy sends lowercase values ("unreviewed") matching the Postgres enum instead of uppercase ("UNREVIEWED")
 - ✅ **Ola Maps Integration** - Added interactive map to the dashboard displaying camera locations:
   - Backend endpoint `/api/maps/config` provides API key securely to authenticated users only
   - OlaMap React component dynamically loads Ola Maps Web SDK from CDN
