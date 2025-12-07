@@ -73,6 +73,48 @@ class SupabaseStorageService(StorageService):
             raise
 
 
+class LocalStorageService(StorageService):
+    """Local filesystem storage for development when MinIO is unavailable."""
+    
+    def __init__(self):
+        import os
+        self.base_path = os.path.join(os.getcwd(), "storage")
+        self._ensure_directories()
+        logger.info("Local storage initialized", base_path=self.base_path)
+    
+    def _ensure_directories(self):
+        import os
+        buckets = [settings.MINIO_BUCKET, settings.STORAGE_CROPS_BUCKET]
+        for bucket in buckets:
+            bucket_path = os.path.join(self.base_path, bucket)
+            os.makedirs(bucket_path, exist_ok=True)
+    
+    async def upload_file(
+        self, file: BinaryIO, bucket: str, object_name: str, content_type: str = "application/octet-stream"
+    ) -> str:
+        import os
+        file_path = os.path.join(self.base_path, bucket, object_name)
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        
+        with open(file_path, 'wb') as f:
+            f.write(file.read())
+        
+        logger.info("File uploaded to local storage", bucket=bucket, object_name=object_name)
+        return object_name
+    
+    async def get_presigned_url(self, bucket: str, object_name: str, expiry: int = 3600) -> str:
+        import os
+        file_path = os.path.join(self.base_path, bucket, object_name)
+        return f"file://{file_path}"
+    
+    async def delete_file(self, bucket: str, object_name: str) -> None:
+        import os
+        file_path = os.path.join(self.base_path, bucket, object_name)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            logger.info("File deleted from local storage", bucket=bucket, object_name=object_name)
+
+
 class MinioStorageService(StorageService):
     def __init__(self):
         self.client = Minio(
@@ -136,5 +178,13 @@ def get_storage_service():
         and bool(settings.SUPABASE_URL)
         and bool(settings.SUPABASE_SERVICE_KEY)
     )
-    return SupabaseStorageService() if use_supabase else MinioStorageService()
+    
+    if use_supabase:
+        return SupabaseStorageService()
+    
+    try:
+        return MinioStorageService()
+    except Exception as e:
+        logger.warning("MinIO not available, using local storage", error=str(e))
+        return LocalStorageService()
 

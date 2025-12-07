@@ -20,8 +20,8 @@ Frontend (React + Vite) → Backend API (FastAPI) → PostgreSQL Database
 1. **Frontend** - React application on port 5000 (user-facing)
 2. **Backend** - FastAPI server on port 8000
 3. **Redis** - Local queue server on port 6379
-4. **PostgreSQL** - Replit managed database
-5. **Worker** - Background job processor (planned)
+4. **PostgreSQL** - Replit managed database (Supabase)
+5. **Worker** - Background job processor (running)
 
 ### Admin Access
 - **Email**: admin@admin.com
@@ -32,7 +32,8 @@ Frontend (React + Vite) → Backend API (FastAPI) → PostgreSQL Database
 - **Mode**: `selfhost` (using local/Replit resources)
 - **Database**: Supabase PostgreSQL (shared with Bolt for synchronized development)
 - **Redis**: Local Redis server
-- **Storage**: MinIO for file uploads
+- **Storage**: Local filesystem fallback (when MinIO unavailable, stores in `/home/runner/workspace/storage`)
+- **Detector**: Mock detector for testing (generates synthetic plate detections)
 - **CORS**: Allows all origins (development mode)
 - **Frontend API**: Configured via Vite proxy in `vite.config.ts` - forwards `/api` requests to backend on port 8000
 
@@ -83,9 +84,8 @@ Frontend (React + Vite) → Backend API (FastAPI) → PostgreSQL Database
 - ✅ Licensing/metering system
 
 ### Pending Integration
-- ⏳ YOLO + EasyOCR detector (stub ready)
-- ⏳ Worker process (code ready, needs workflow)
-- ⏳ MinIO server setup
+- ⏳ YOLO + EasyOCR detector (mock detector active for testing)
+- ⏳ MinIO server setup (using local storage fallback)
 - ⏳ Webhook/email notifications
 
 ## Development Workflow
@@ -251,6 +251,14 @@ See `docs/READY_SWITCH.md` for detailed instructions on:
 ## Recent Changes
 
 **December 7, 2025 (Latest)**
+- ✅ **FIXED: Upload processing workflow** - Complete end-to-end video upload and processing now working:
+  - Fixed `UploadStatus` enum mismatch with `values_callable` for lowercase values
+  - Fixed `metadata` reserved attribute name in Upload model (renamed to `upload_metadata` mapped to `metadata` column)
+  - Added `LocalStorageService` as fallback when MinIO is unavailable (stores files in `/home/runner/workspace/storage`)
+  - Updated worker to handle local file paths directly (file:// URLs) instead of HTTP download
+  - Installed Pillow for image processing
+  - Mock detector generates synthetic license plate detections for testing
+- ✅ **Worker workflow configured** - Background job processor now runs as a separate workflow
 - ✅ **FIXED: Events page crash** - Changed camera filter dropdown to use "all" as value instead of empty string (Radix UI requirement), with proper conversion for API requests
 - ✅ **FIXED: review_state enum mismatch** - Added `values_callable` to SQLEnum configuration so SQLAlchemy sends lowercase values ("unreviewed") matching the Postgres enum instead of uppercase ("UNREVIEWED")
 - ✅ **Ola Maps Integration** - Added interactive map to the dashboard displaying camera locations:

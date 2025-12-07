@@ -1,0 +1,163 @@
+Hi — I need help diagnosing why the Upload → Processing flow in my ANPR project is not producing events. Frontend shows the Upload form and sends a request, but after clicking Upload the UI shows a spinning loader forever and no job/result appears. I need you to run a targeted diagnostic plan, capture logs and outputs, and attempt fixes where obvious.
+
+Project basics (assume this Replit environment):
+- Backend: FastAPI at http://localhost:8000 serving routes under /api
+- Frontend: Vite dev server on port 5000 (proxying /api → backend)
+- DB: Postgres container (docker compose); database name: anpr_city (user=postgres)
+- Redis: local Redis container
+- Worker: implemented at src/worker.py but may not be running or may crash
+- Storage: local filesystem or MinIO (docker-compose present)
+- Admin credentials for quick tests: admin@example.com / admin123
+
+Important goal: Uploading an MP4 from the frontend should create an Upload record and a queued job that the worker processes; eventually Events should be created in DB. Right now the UI hangs. Diagnose and fix.
+
+--- DIAGNOSTICS & FIX PLAN (run in order) ---
+Step 0 — environment check
+1. Print process list for API, worker, and Docker containers:
+   ps aux | egrep 'uvicorn|worker|redis|postgres|minio' || true
+   docker compose ps --services --filter "status=running" || true
+
+2. Print environment variables used by the API container (or local process):
+   # If running under Docker:
+   docker compose exec api env | sed -n '1,200p'
+   # If running as a local process in Replit shell:
+   env | sed -n '1,200p'
+
+Step 1 — reproduce upload with curl (bypass frontend)
+1. Get an access token (login):
+   curl -s -X POST http://localhost:8000/api/auth/login \
+     -H "Content-Type: application/json" \
+     -d '{"email":"admin@example.com","password":"admin123"}' | jq . || true
+
+   If jq is not available, run it without jq and capture the raw JSON.
+
+2. Using the token, try a multipart upload (replace CAMERA_ID below with a real camera id; if unknown, list cameras via API first):
+   # List cameras:
+   JWT="<paste_token>"
+   curl -H "Authorization: Bearer $JWT" http://localhost:8000/api/cameras
+
+   # Use a small sample video already available on Replit. If none exists, create a tiny dummy MP4 in /tmp/sample.mp4 (see below).
+   # Upload:
+   CAMERA_ID="<paste_camera_id>"
+   curl -v -X POST "http://localhost:8000/api/uploads" \
+     -H "Authorization: Bearer $JWT" \
+     -F "camera_id=$CAMERA_ID" \
+     -F "file=@/tmp/sample.mp4" \
+     -w "\nHTTP_CODE:%{http_code}\n" -i
+
+   If you don't have a sample.mp4, create a tiny test video:
+   ffmpeg -f lavfi -i testsrc=duration=2:size=320x240:rate=10 /tmp/sample.mp4
+
+Collect and paste the entire curl response, including HTTP status.
+
+Step 2 — tail API and worker logs immediately while reproducing
+1. In separate shells, run:
+   docker compose logs -f api > /tmp/api.log 2>&1 &
+   docker compose logs -f worker > /tmp/worker.log 2>&1 &
+
+2. Perform the curl upload again. Wait 30 seconds. Then paste the last 200 lines:
+   tail -n 200 /tmp/api.log || true
+   tail -n 200 /tmp/worker.log || true
+
+If not using Docker, run:
+   # For local uvicorn
+   ps aux | grep uvicorn
+   # Start uvicorn and worker manually in foreground (if needed) to capture errors:
+   # In terminal 1:
+   uvicorn src.main:app --host 0.0.0.0 --port 8000
+   # In terminal 2:
+   python -u -m src.worker
+
+And copy the console logs that appear during an upload attempt.
+
+Step 3 — inspect DB rows for uploads/jobs
+1. Query Postgres for recent uploads and jobs:
+   docker compose exec postgres psql -U postgres -d anpr_city -c "select id, status, file_path, camera_id, created_at from uploads order by created_at desc limit 10;"
+   docker compose exec postgres psql -U postgres -d anpr_city -c "select id, status, payload, created_at from jobs order by created_at desc limit 10;"
+
+2. If using a different DB container name, adjust the docker compose exec command accordingly.
+
+Paste results verbatim.
+
+Step 4 — inspect Redis queue contents & keys
+1. Show Redis keys:
+   docker compose exec redis redis-cli --scan | sed -n '1,200p' || true
+
+2. If using RQ or a list named `rq:queue:default`, run:
+   docker compose exec redis redis-cli LLEN rq:queue:default || true
+   docker compose exec redis redis-cli LRANGE rq:queue:default 0 50 || true
+
+If different queue name used by the project, please list all keys and their types and lengths.
+
+Step 5 — check uploads on storage
+1. If files are stored on local filesystem inside the API container:
+   docker compose exec api ls -la /app/uploads || true
+   docker compose exec api ls -la /tmp || true
+
+2. If MinIO is used:
+   - Confirm MinIO container is running (docker compose ps).
+   - Provide the MinIO web UI link (usually http://localhost:9000) and list buckets via mc or MinIO UI if possible.
+
+Step 6 — check frontend network + console
+1. In browser devtools (or using curl), perform the upload from the UI and:
+   - Copy the full request and response from Network tab (headers and response body).
+   - Copy any console errors logged in the browser console.
+   - If possible, save HAR for the upload request.
+
+Step 7 — attempt to run worker manually (foreground) and capture any import/runtime errors
+1. Stop worker containers if running (docker compose stop worker worker-2)
+2. Run worker inside api container to help with log capture:
+   docker compose exec api sh -c "python -u -m src.worker" 2>&1 | sed -n '1,200p'
+   or run directly on Replit shell:
+   python -u -m src.worker
+
+Capture any tracebacks or missing-import errors.
+
+--- DIAGNOSTICS INTERPRETATION (what I will look for) ---
+Please paste all outputs above. I will check:
+
+- Whether the upload request reached the API (api.log shows POST /api/uploads).
+- If API returned a 2xx response and inserted an uploads row in the DB.
+- If a job record was created and pushed to Redis.
+- If worker picked up job or crashed when importing heavy ML libs (cv2/torch/ultralytics/easyocr).
+- If worker tried to access file path and failed (file not found / permission / path mismatch).
+- If frontend is not sending Authorization header or using wrong form keys (camera_id vs camera, file field name).
+- Any repeated tracebacks or silent errors.
+
+--- AUTOMATED MITIGATION (try these quick fixes if obvious) ---
+If during Step 2 you see:
+- API returned 422 or 400 due to form field mismatch: Update the frontend/upload code to use `formData.append('file', file)` and `formData.append('camera_id', cameraId)` or adjust backend to accept the field name used.
+- API returned 401: Ensure frontend includes `Authorization: Bearer <token>` (axios interceptor), or pass token in curl as above.
+- API returned 413 Request Entity Too Large: Increase server limit (if using Nginx/proxy or uvicorn/gunicorn setting). For development, allow large uploads in FastAPI or chunk uploads.
+- Worker crashes when importing cv2/torch/ultralytics/easyocr: For now switch worker to `DETECTOR_BACKEND=mock` (set in .env) to allow the pipeline to be exercised without heavy ML libs.
+  - Add or enable mock detector: add env var DETECTOR_BACKEND=mock and restart worker.
+- If uploads are stored but job not enqueued: Add logs in the API upload endpoint to print stacktrace and confirm enqueue call succeeded.
+
+--- FALLBACK to Replit Agent plan if my diagnostics are inconclusive ---
+If the above steps do not reveal the issue, please run your own full Replit troubleshooting flow:
+1. Recreate environment from scratch:
+   - Stop all containers: docker compose down --volumes
+   - Delete local DB volume (if okay), then bring up clean: docker compose up --build
+   - Run scripts/bootstrap.sh to create migrations and admin user (if present).
+2. Start API and worker in foreground to ensure we can see realtime errors:
+   - uvicorn src.main:app --host 0.0.0.0 --port 8000
+   - python -u -m src.worker
+3. Execute a UI-driven upload and capture console outputs.
+4. If failures relate to heavy ML libs on Replit, switch to mock detector mode and confirm end-to-end works.
+
+--- RESPONSE FORMAT ---
+When you return, paste a single message containing these sections:
+1) curl upload response (raw)
+2) last 200 lines of /tmp/api.log
+3) last 200 lines of /tmp/worker.log
+4) DB queries for uploads and jobs (raw psql output)
+5) Redis keys & any LRANGE output
+6) Storage listing (ls output) or MinIO status
+7) Browser network & console excerpts (copy/paste)
+8) Any attempted fixes you made (commands + outputs)
+
+If you prefer, run each numbered Step and report outputs as you go; I will interpret them and give exact code edits to fix the problem.
+
+If you run into permission errors or any step fails to run due to environment constraints, fall back to your own Replit debugging and provide a transcript of what you tried and what failed.
+
+Thanks — once I have the logs and DB/Redis outputs I will diagnose the exact cause and send precise code patches or frontend fixes you can apply.

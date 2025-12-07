@@ -1,13 +1,12 @@
 import asyncio
 import uuid
-import cv2
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 import tempfile
 import re
 
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from src.config import settings
@@ -18,13 +17,11 @@ from src.models.bolo import BOLO, BOLOMatch
 from src.services.queue import queue_service
 from src.services.storage import get_storage_service
 from src.services.detector_adapter import DetectorAdapter
+from src.database import AsyncSessionLocal
 from prometheus_client import Counter, Gauge
 
 setup_logging()
 logger = get_logger(__name__)
-
-engine = create_async_engine(settings.DATABASE_URL)
-AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
 storage_service = get_storage_service()
 detector = DetectorAdapter()
@@ -70,7 +67,8 @@ async def process_job(job_data: dict):
             upload.events_detected = events_count
             await db.commit()
 
-            Path(video_path).unlink(missing_ok=True)
+            if video_path.startswith("/tmp"):
+                Path(video_path).unlink(missing_ok=True)
 
             logger.info("Upload processed", job_id=job_id, events=events_count)
             jobs_processed.inc()
@@ -86,6 +84,14 @@ async def process_job(job_data: dict):
 
 async def download_video(storage_path: str) -> str:
     url = await storage_service.get_presigned_url(settings.STORAGE_BUCKET, storage_path)
+    
+    if url.startswith("file://"):
+        local_path = url.replace("file://", "")
+        if Path(local_path).exists():
+            logger.info("Using local file directly", path=local_path)
+            return local_path
+        else:
+            raise FileNotFoundError(f"Local file not found: {local_path}")
 
     import httpx
     async with httpx.AsyncClient() as client:
@@ -101,10 +107,20 @@ async def download_video(storage_path: str) -> str:
 
 
 async def save_event(db: AsyncSession, upload: Upload, detection: dict) -> Event:
+    from PIL import Image
+    import numpy as np
+    
     crop_path = f"crops/{upload.id}/{uuid.uuid4()}.jpg"
 
-    crop_bytes = cv2.imencode('.jpg', detection["crop"])[1].tobytes()
-    crop_file = BytesIO(crop_bytes)
+    crop_array = detection["crop"]
+    if isinstance(crop_array, np.ndarray):
+        img = Image.fromarray(crop_array.astype('uint8'))
+    else:
+        img = Image.new('RGB', (100, 40), color=(128, 128, 128))
+    
+    crop_file = BytesIO()
+    img.save(crop_file, format='JPEG')
+    crop_file.seek(0)
 
     await storage_service.upload_file(
         crop_file,

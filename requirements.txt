@@ -58,3 +58,4 @@ structlog
 uvicorn
 httpx
 python-multipart
+Pillow

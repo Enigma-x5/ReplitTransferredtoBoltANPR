@@ -34,10 +34,11 @@ class Upload(Base):
     storage_path: Mapped[str] = mapped_column(Text, nullable=False)
     file_size: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[UploadStatus] = mapped_column(
-        SQLEnum(UploadStatus, name="upload_status"), default=UploadStatus.QUEUED
+        SQLEnum(UploadStatus, name="upload_status", values_callable=lambda obj: [e.value for e in obj]), 
+        default=UploadStatus.QUEUED
     )
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    meta_data: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    upload_metadata: Mapped[Optional[dict]] = mapped_column("metadata", JSONB, nullable=True)
     events_detected: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)

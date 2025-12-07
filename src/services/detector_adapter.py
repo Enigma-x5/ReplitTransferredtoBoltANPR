@@ -1,6 +1,5 @@
 from typing import Iterator, Dict, Any
 from pathlib import Path
-import cv2
 import re
 from datetime import datetime
 
