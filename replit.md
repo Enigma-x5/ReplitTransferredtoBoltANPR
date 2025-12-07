@@ -250,7 +250,16 @@ See `docs/READY_SWITCH.md` for detailed instructions on:
 
 ## Recent Changes
 
-**December 6, 2025 (Latest)**
+**December 7, 2025 (Latest)**
+- ✅ **Ola Maps Integration** - Added interactive map to the dashboard displaying camera locations:
+  - Backend endpoint `/api/maps/config` provides API key securely to authenticated users only
+  - OlaMap React component dynamically loads Ola Maps Web SDK from CDN
+  - Camera locations displayed as colored markers (green = active, red = inactive)
+  - Markers have popups showing camera name and status
+  - Map auto-fits bounds when multiple cameras are present
+  - Improved error handling with timeout fallback for map loading
+
+**December 6, 2025**
 - ✅ **FIXED: Network Error on login** - Changed frontend `.env` to use `VITE_API_BASE_URL=/api` instead of `http://localhost:8000`. The old value caused the browser to try to connect to the user's local machine instead of going through the Vite proxy to reach the Replit backend.
 - ✅ **Updated demo credentials** - Login page now shows correct credentials: `admin@admin.com / Admin@123`
 
