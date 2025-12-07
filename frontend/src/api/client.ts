@@ -183,6 +183,12 @@ class APIClient {
     const response = await this.client.get('/admin/health');
     return response.data;
   }
+
+  // Maps endpoints
+  async getMapConfig() {
+    const response = await this.client.get('/maps/config');
+    return response.data as { api_key: string; style_url: string };
+  }
 }
 
 export const apiClient = new APIClient();

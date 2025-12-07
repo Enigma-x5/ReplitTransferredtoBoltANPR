@@ -58,6 +58,8 @@ class Settings(BaseSettings):
     EMAIL_SMTP_PORT: int = 587
     EMAIL_FROM: str = "alerts@yourdomain.com"
 
+    OLA_MAPS_API_KEY: str = ""
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]

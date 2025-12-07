@@ -8,7 +8,7 @@ from src.config import settings
 from src.logging_config import setup_logging, get_logger
 from src.services.queue import queue_service
 
-from src.api import auth, users, cameras, uploads, jobs, events, feedback, bolos, licenses, admin
+from src.api import auth, users, cameras, uploads, jobs, events, feedback, bolos, licenses, admin, maps
 
 setup_logging()
 logger = get_logger(__name__)
@@ -49,6 +49,7 @@ api_router.include_router(feedback.router)
 api_router.include_router(bolos.router)
 api_router.include_router(licenses.router)
 api_router.include_router(admin.router)
+api_router.include_router(maps.router)
 
 app.mount("/api", api_router)
 

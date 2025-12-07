@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { apiClient } from '@/api/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Camera, FileText, AlertTriangle, TrendingUp } from 'lucide-react';
+import OlaMap from '@/components/OlaMap';
 
 export default function DashboardPage() {
   const [metrics, setMetrics] = useState({
@@ -101,17 +102,13 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* Map placeholder */}
+      {/* Camera Locations Map */}
       <Card>
         <CardHeader>
           <CardTitle>Camera Locations</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="aspect-video bg-muted rounded-lg flex items-center justify-center">
-            <p className="text-muted-foreground">
-              Map view will be integrated with OlaMaps
-            </p>
-          </div>
+          <OlaMap cameras={cameras} height="400px" />
         </CardContent>
       </Card>
 
