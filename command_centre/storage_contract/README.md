@@ -74,6 +74,131 @@ Command Centre:
 - **Minimum**: Weekly batches
 - **Maximum**: Real-time uploads (not recommended due to overhead)
 
+## Data Retention and Eligibility Policy
+
+### Upload Eligibility Rules
+
+**CRITICAL: Only specific HITL statuses are eligible for upload to Command Centre.**
+
+**Eligible for Upload:**
+- Events with `label_status = 'correct'` (confirmed detections)
+- Events with `label_status = 'changed'` (corrected detections)
+
+**NOT Eligible for Upload:**
+- Events with `label_status = 'unsure'` (ambiguous, operator uncertain)
+- Events with `label_status = 'pending'` (awaiting HITL review)
+- Events without any HITL status
+
+**Rationale:**
+- **Correct samples**: Confirm the model is working properly, useful for validation
+- **Changed samples**: Provide corrections for model improvement, most valuable for training
+- **Unsure samples**: Ambiguous data degrades training quality, excluded by design
+- **Pending samples**: Incomplete workflow, not yet ready for learning purposes
+
+### Image Retention Policy
+
+**All images are ephemeral and automatically deleted according to policy.**
+
+#### City/Client-Side Retention
+
+Images stored locally at cities are subject to automatic deletion:
+
+**Images WITHOUT completed HITL (pending or no HITL):**
+- **Maximum retention**: 6 months
+- **Purpose**: Allow time for HITL review and processing
+- **After expiration**: Automatically deleted, no upload to Command Centre
+
+**Images WITH completed HITL (correct, changed, or unsure):**
+- **Maximum retention**: 1 month
+- **Purpose**: Allow time for upload to Command Centre (if eligible)
+- **After expiration**: Automatically deleted from city storage
+
+#### Command Centre Retention
+
+Images uploaded to Command Centre are also ephemeral:
+
+**Learning images in Command Centre storage:**
+- **Retention period**: Configurable, typically 1-2 years
+- **Purpose**: Training and model evaluation only
+- **After expiration**: Automatically deleted from object storage
+- **Database metadata**: Retained for audit trail (without image reference)
+
+### Data Lifecycle Summary
+
+```
+Event Captured
+    ↓
+[0-6 months] Awaiting HITL review (if no HITL performed)
+    ↓
+HITL Review Completed
+    ↓
+[0-1 month] City retention after HITL
+    ↓
+Eligibility Check:
+    - correct/changed → Upload to Command Centre
+    - unsure/pending → Discard, do NOT upload
+    ↓
+[City] Automatic deletion after 1 month
+    ↓
+[Command Centre] Store for 1-2 years (training/evaluation)
+    ↓
+[Command Centre] Automatic deletion after retention period
+    ↓
+Database metadata retained (no image reference)
+```
+
+### Ephemeral Data Principles
+
+**All image data is temporary and used only for learning purposes:**
+
+- **No permanent archival**: Images are not kept indefinitely
+- **Learning-focused**: Images serve training and evaluation, then deleted
+- **Metadata survives**: Database records remain for audit trail
+- **Privacy by design**: Automatic deletion reduces privacy risk
+- **Storage costs controlled**: Ephemeral storage limits growth
+
+### Policy Enforcement
+
+**Upload eligibility is enforced at the city/client level:**
+
+- **City responsibility**: Cities filter events by HITL status before upload
+- **Pre-upload validation**: Only eligible events are selected for batch uploads
+- **Command Centre does NOT override**: Command Centre accepts uploads from cities based on trust
+- **Audit trail**: All uploads logged with original HITL status in metadata
+
+**Why city-level enforcement?**
+- Cities have the authoritative HITL status information
+- Reduces unnecessary data transfer (don't upload to check eligibility)
+- Maintains data sovereignty (cities control what they share)
+- Simplifies Command Centre logic (trust uploaded data meets criteria)
+
+### Retention Policy Benefits
+
+**Automatic deletion provides multiple benefits:**
+
+- **Privacy compliance**: Reduced data retention supports GDPR and similar regulations
+- **Storage cost control**: Automatic cleanup prevents unbounded growth
+- **Data quality**: Fresh data more relevant for training
+- **Security**: Less data exposure over time
+- **Operational simplicity**: Automatic policies, no manual cleanup required
+
+### Edge Cases and Exceptions
+
+**HITL status changes after upload:**
+- If a city operator changes HITL status after upload (e.g., 'correct' → 'unsure'), the image remains in Command Centre until retention policy expires
+- No retroactive deletion from Command Centre based on status changes
+- New status does not trigger re-upload or update
+
+**Manual deletion requests:**
+- Cities or operators may request early deletion (e.g., for privacy/GDPR reasons)
+- Deletion requests processed via metadata queries (see "Object Lifecycle" section)
+- Deletion typically completed within 7 days of request
+
+**Retention period adjustments:**
+- Retention periods are configurable per deployment
+- Changes apply to new uploads, not retroactively
+- Longer retention may be needed for specialized training scenarios
+
 ## Storage Backend Options
 
 The contract is backend-agnostic. Recommended options:
