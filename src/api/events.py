@@ -63,9 +63,23 @@ async def search_events(
     total_result = await db.execute(count_query)
     total = total_result.scalar()
 
+    storage = get_storage_service()
+    items = []
+    for event in events:
+        event_dict = EventResponse.model_validate(event).model_dump()
+        if event.crop_path:
+            try:
+                event_dict['crop_url'] = await storage.get_presigned_url(
+                    settings.STORAGE_CROPS_BUCKET, event.crop_path, expiry=3600
+                )
+            except Exception as e:
+                logger.warning(f"Failed to generate presigned URL for {event.crop_path}: {e}")
+                event_dict['crop_url'] = None
+        items.append(EventResponse(**event_dict))
+
     return EventListResponse(
         total=total,
-        items=[EventResponse.model_validate(event) for event in events]
+        items=items
     )
 
 
@@ -81,7 +95,18 @@ async def get_event(
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
 
-    return EventResponse.model_validate(event)
+    event_dict = EventResponse.model_validate(event).model_dump()
+    if event.crop_path:
+        storage = get_storage_service()
+        try:
+            event_dict['crop_url'] = await storage.get_presigned_url(
+                settings.STORAGE_CROPS_BUCKET, event.crop_path, expiry=3600
+            )
+        except Exception as e:
+            logger.warning(f"Failed to generate presigned URL for {event.crop_path}: {e}")
+            event_dict['crop_url'] = None
+
+    return EventResponse(**event_dict)
 
 
 @router.post("/{event_id}/confirm", response_model=EventResponse)
@@ -107,7 +132,18 @@ async def confirm_event(
 
     logger.info("Event confirmed", event_id=str(event_id), confirmed_by=str(current_user.id))
 
-    return EventResponse.model_validate(event)
+    event_dict = EventResponse.model_validate(event).model_dump()
+    if event.crop_path:
+        storage = get_storage_service()
+        try:
+            event_dict['crop_url'] = await storage.get_presigned_url(
+                settings.STORAGE_CROPS_BUCKET, event.crop_path, expiry=3600
+            )
+        except Exception as e:
+            logger.warning(f"Failed to generate presigned URL for {event.crop_path}: {e}")
+            event_dict['crop_url'] = None
+
+    return EventResponse(**event_dict)
 
 
 @router.post("/{event_id}/correction", response_model=CorrectionResponse, status_code=201)

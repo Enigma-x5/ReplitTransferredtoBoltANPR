@@ -24,6 +24,7 @@ interface PendingEvent {
   camera_id: string;
   captured_at: string;
   crop_path?: string;
+  crop_url?: string;
 }
 
 export default function ReviewPage() {
@@ -152,12 +153,19 @@ export default function ReviewPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Image placeholder */}
-                <div className="aspect-video bg-muted rounded-lg flex items-center justify-center">
-                  <p className="text-sm text-muted-foreground">
-                    {event.crop_path ? 'Image crop available' : 'No crop image'}
-                  </p>
-                </div>
+                {event.crop_url ? (
+                  <div className="aspect-video bg-muted rounded-lg overflow-hidden">
+                    <img
+                      src={event.crop_url}
+                      alt={`License plate ${event.plate}`}
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                ) : (
+                  <div className="aspect-video bg-muted rounded-lg flex items-center justify-center">
+                    <p className="text-sm text-muted-foreground">No crop available</p>
+                  </div>
+                )}
 
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">

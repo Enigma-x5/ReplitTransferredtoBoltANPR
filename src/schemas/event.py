@@ -24,6 +24,7 @@ class EventResponse(BaseModel):
     captured_at: datetime
     frame_no: int
     crop_path: str
+    crop_url: Optional[str] = None
     review_state: ReviewState
     created_at: datetime
 

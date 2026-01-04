@@ -13,6 +13,8 @@ from src.models.export import Export, ExportStatus
 from src.models.user import User
 from src.schemas.event import EventListResponse, EventResponse
 from src.services.queue import queue_service
+from src.services.storage import get_storage_service
+from src.config import settings
 from src.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -35,9 +37,23 @@ async def list_pending_feedback(
     result = await db.execute(query)
     events = result.scalars().all()
 
+    storage = get_storage_service()
+    items = []
+    for event in events:
+        event_dict = EventResponse.model_validate(event).model_dump()
+        if event.crop_path:
+            try:
+                event_dict['crop_url'] = await storage.get_presigned_url(
+                    settings.STORAGE_CROPS_BUCKET, event.crop_path, expiry=3600
+                )
+            except Exception as e:
+                logger.warning(f"Failed to generate presigned URL for {event.crop_path}: {e}")
+                event_dict['crop_url'] = None
+        items.append(EventResponse(**event_dict))
+
     return EventListResponse(
-        total=len(events),
-        items=[EventResponse.model_validate(event) for event in events]
+        total=len(items),
+        items=items
     )
 
 

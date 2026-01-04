@@ -144,7 +144,7 @@ class APIClient {
   // Feedback endpoints
   async getPendingEvents() {
     const response = await this.client.get('/feedback/pending');
-    return response.data;
+    return response.data?.items ?? [];
   }
 
   async exportFeedback(params?: { from_ts?: string; to_ts?: string }) {
