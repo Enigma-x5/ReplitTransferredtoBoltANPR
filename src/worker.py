@@ -106,26 +106,82 @@ async def download_video(storage_path: str) -> str:
         return temp_file.name
 
 
+_debug_frame_saved = {}
+
+
 async def save_event(db: AsyncSession, upload: Upload, detection: dict) -> Event:
     from PIL import Image
     import numpy as np
     import cv2
 
+    job_id = str(upload.id)
+    frame_no = detection.get("frame_no", 0)
     crop_path = f"crops/{upload.id}/{uuid.uuid4()}.jpg"
 
     crop_array = detection.get("crop")
+    frame_array = detection.get("frame")
+
+    # DEBUG: Log frame stats if frame is available
+    if frame_array is not None and isinstance(frame_array, np.ndarray):
+        logger.info(
+            "DEBUG_FRAME_STATS",
+            job_id=job_id,
+            frame_no=frame_no,
+            frame_shape=frame_array.shape,
+            frame_dtype=str(frame_array.dtype),
+            frame_min=int(frame_array.min()),
+            frame_max=int(frame_array.max())
+        )
+
+        # Save ONE full frame per job for forensic inspection
+        if job_id not in _debug_frame_saved:
+            _debug_frame_saved[job_id] = True
+            debug_dir = Path("storage/anpr-crops/debug")
+            debug_dir.mkdir(parents=True, exist_ok=True)
+            debug_path = debug_dir / f"fullframe_{job_id}_frame{frame_no}.jpg"
+            try:
+                cv2.imwrite(str(debug_path), frame_array)
+                logger.info("DEBUG_FULLFRAME_SAVED", path=str(debug_path), shape=frame_array.shape)
+            except Exception as e:
+                logger.error("DEBUG_FULLFRAME_SAVE_FAILED", error=str(e))
+    elif frame_array is None:
+        logger.warning("DEBUG_FRAME_MISSING", job_id=job_id, frame_no=frame_no)
 
     # Validate crop is a real numpy array with valid dimensions
     if not isinstance(crop_array, np.ndarray):
-        logger.warning("Invalid crop type, skipping upload", upload_id=str(upload.id))
+        logger.error("DEBUG_CROP_INVALID_TYPE", job_id=job_id, frame_no=frame_no, crop_type=type(crop_array).__name__)
         crop_path = None
     elif crop_array.ndim != 3 or crop_array.shape[2] != 3:
-        logger.warning("Invalid crop shape, skipping upload", shape=crop_array.shape, upload_id=str(upload.id))
+        logger.error("DEBUG_CROP_INVALID_SHAPE", job_id=job_id, frame_no=frame_no, shape=crop_array.shape)
         crop_path = None
     elif crop_array.shape[0] < 5 or crop_array.shape[1] < 5:
-        logger.warning("Crop too small, skipping upload", shape=crop_array.shape, upload_id=str(upload.id))
+        logger.error("DEBUG_CROP_TOO_SMALL", job_id=job_id, frame_no=frame_no, shape=crop_array.shape)
         crop_path = None
     else:
+        crop_min = int(crop_array.min())
+        crop_max = int(crop_array.max())
+
+        # DEBUG: Log crop stats before saving
+        logger.info(
+            "DEBUG_CROP_STATS",
+            job_id=job_id,
+            frame_no=frame_no,
+            crop_shape=crop_array.shape,
+            crop_dtype=str(crop_array.dtype),
+            crop_min=crop_min,
+            crop_max=crop_max
+        )
+
+        # Check for solid color crop (indicates decode failure)
+        if crop_min == crop_max:
+            logger.error(
+                "DEBUG_CROP_SOLID_COLOR",
+                job_id=job_id,
+                frame_no=frame_no,
+                value=crop_min,
+                msg="Crop is solid color - likely decode failure"
+            )
+
         # Convert BGR (OpenCV) to RGB (PIL)
         crop_rgb = cv2.cvtColor(crop_array, cv2.COLOR_BGR2RGB)
         img = Image.fromarray(crop_rgb.astype('uint8'))

@@ -142,6 +142,7 @@ class MockDetector:
                 "frame_no": frame_no,
                 "captured_at": datetime.utcnow(),
                 "crop": crop,
+                "frame": frame,
                 "camera_id": camera_id,
             }
 
