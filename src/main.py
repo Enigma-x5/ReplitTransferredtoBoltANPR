@@ -55,9 +55,9 @@ api_router.include_router(maps.router)
 
 app.mount("/api", api_router)
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-CROPS_DIR = BASE_DIR / "storage" / settings.STORAGE_CROPS_BUCKET
-CROPS_DIR.mkdir(parents=True, exist_ok=True)
+BASE_DIR = Path(__file__).resolve().parents[1]
+CROPS_DIR = BASE_DIR / "storage" / "anpr-crops"
+logger.info(f"StaticFiles mount: /media/anpr-crops -> {CROPS_DIR}")
 app.mount("/media/anpr-crops", StaticFiles(directory=str(CROPS_DIR)), name="crops")
 
 if settings.PROMETHEUS_ENABLED:
