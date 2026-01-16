@@ -109,25 +109,37 @@ async def download_video(storage_path: str) -> str:
 async def save_event(db: AsyncSession, upload: Upload, detection: dict) -> Event:
     from PIL import Image
     import numpy as np
-    
+    import cv2
+
     crop_path = f"crops/{upload.id}/{uuid.uuid4()}.jpg"
 
-    crop_array = detection["crop"]
-    if isinstance(crop_array, np.ndarray):
-        img = Image.fromarray(crop_array.astype('uint8'))
-    else:
-        img = Image.new('RGB', (100, 40), color=(128, 128, 128))
-    
-    crop_file = BytesIO()
-    img.save(crop_file, format='JPEG')
-    crop_file.seek(0)
+    crop_array = detection.get("crop")
 
-    await storage_service.upload_file(
-        crop_file,
-        settings.STORAGE_CROPS_BUCKET,
-        crop_path,
-        "image/jpeg"
-    )
+    # Validate crop is a real numpy array with valid dimensions
+    if not isinstance(crop_array, np.ndarray):
+        logger.warning("Invalid crop type, skipping upload", upload_id=str(upload.id))
+        crop_path = None
+    elif crop_array.ndim != 3 or crop_array.shape[2] != 3:
+        logger.warning("Invalid crop shape, skipping upload", shape=crop_array.shape, upload_id=str(upload.id))
+        crop_path = None
+    elif crop_array.shape[0] < 5 or crop_array.shape[1] < 5:
+        logger.warning("Crop too small, skipping upload", shape=crop_array.shape, upload_id=str(upload.id))
+        crop_path = None
+    else:
+        # Convert BGR (OpenCV) to RGB (PIL)
+        crop_rgb = cv2.cvtColor(crop_array, cv2.COLOR_BGR2RGB)
+        img = Image.fromarray(crop_rgb.astype('uint8'))
+
+        crop_file = BytesIO()
+        img.save(crop_file, format='JPEG')
+        crop_file.seek(0)
+
+        await storage_service.upload_file(
+            crop_file,
+            settings.STORAGE_CROPS_BUCKET,
+            crop_path,
+            "image/jpeg"
+        )
 
     event = Event(
         upload_id=upload.id,
