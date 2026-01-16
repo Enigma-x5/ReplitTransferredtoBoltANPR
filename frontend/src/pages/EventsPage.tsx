@@ -105,12 +105,17 @@ export default function EventsPage() {
       corrected: 'bg-primary/10 text-primary',
       rejected: 'bg-destructive/10 text-destructive',
     };
-    
+
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${colors[state] || colors.unreviewed}`}>
         {state}
       </span>
     );
+  };
+
+  const formatTimestampIST = (ts: string) => {
+    const normalized = ts && !ts.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(ts) ? `${ts}Z` : ts;
+    return new Date(normalized).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
   };
 
   return (
@@ -229,7 +234,7 @@ export default function EventsPage() {
                       <TableCell>{getConfidenceBadge(event.confidence)}</TableCell>
                       <TableCell>{getCameraName(event.camera_id)}</TableCell>
                       <TableCell>
-                        {new Date(event.captured_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
+                        {formatTimestampIST(event.captured_at)}
                       </TableCell>
                       <TableCell>{getReviewStateBadge(event.review_state)}</TableCell>
                     </TableRow>

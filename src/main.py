@@ -1,5 +1,5 @@
-import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -55,9 +55,10 @@ api_router.include_router(maps.router)
 
 app.mount("/api", api_router)
 
-crops_dir = os.path.join(os.getcwd(), "storage", settings.STORAGE_CROPS_BUCKET)
-os.makedirs(crops_dir, exist_ok=True)
-app.mount("/media/anpr-crops", StaticFiles(directory=crops_dir), name="crops")
+BASE_DIR = Path(__file__).resolve().parent.parent
+CROPS_DIR = BASE_DIR / "storage" / settings.STORAGE_CROPS_BUCKET
+CROPS_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/media/anpr-crops", StaticFiles(directory=str(CROPS_DIR)), name="crops")
 
 if settings.PROMETHEUS_ENABLED:
     metrics_app = make_asgi_app()

@@ -119,6 +119,11 @@ export default function ReviewPage() {
     return 'text-destructive';
   };
 
+  const formatTimestampIST = (ts: string) => {
+    const normalized = ts && !ts.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(ts) ? `${ts}Z` : ts;
+    return new Date(normalized).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -174,7 +179,7 @@ export default function ReviewPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Captured:</span>
-                    <span>{new Date(event.captured_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</span>
+                    <span>{formatTimestampIST(event.captured_at)}</span>
                   </div>
                 </div>
 
