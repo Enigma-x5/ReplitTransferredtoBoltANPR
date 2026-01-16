@@ -229,7 +229,7 @@ export default function EventsPage() {
                       <TableCell>{getConfidenceBadge(event.confidence)}</TableCell>
                       <TableCell>{getCameraName(event.camera_id)}</TableCell>
                       <TableCell>
-                        {new Date(event.captured_at).toLocaleString()}
+                        {new Date(event.captured_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
                       </TableCell>
                       <TableCell>{getReviewStateBadge(event.review_state)}</TableCell>
                     </TableRow>

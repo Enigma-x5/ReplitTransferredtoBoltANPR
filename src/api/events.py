@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -12,8 +12,6 @@ from src.models.event import Event, ReviewState, Correction
 from src.models.user import User
 from src.schemas.event import EventResponse, EventListResponse, ConfirmEventRequest
 from src.schemas.correction import CorrectionCreate, CorrectionResponse
-from src.services.storage import get_storage_service
-from src.config import settings
 from src.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -63,18 +61,11 @@ async def search_events(
     total_result = await db.execute(count_query)
     total = total_result.scalar()
 
-    storage = get_storage_service()
     items = []
     for event in events:
         event_dict = EventResponse.model_validate(event).model_dump()
         if event.crop_path:
-            try:
-                event_dict['crop_url'] = await storage.get_presigned_url(
-                    settings.STORAGE_CROPS_BUCKET, event.crop_path, expiry=3600
-                )
-            except Exception as e:
-                logger.warning(f"Failed to generate presigned URL for {event.crop_path}: {e}")
-                event_dict['crop_url'] = None
+            event_dict['crop_url'] = f"/media/anpr-crops/{event.crop_path}"
         items.append(EventResponse(**event_dict))
 
     return EventListResponse(
@@ -97,14 +88,7 @@ async def get_event(
 
     event_dict = EventResponse.model_validate(event).model_dump()
     if event.crop_path:
-        storage = get_storage_service()
-        try:
-            event_dict['crop_url'] = await storage.get_presigned_url(
-                settings.STORAGE_CROPS_BUCKET, event.crop_path, expiry=3600
-            )
-        except Exception as e:
-            logger.warning(f"Failed to generate presigned URL for {event.crop_path}: {e}")
-            event_dict['crop_url'] = None
+        event_dict['crop_url'] = f"/media/anpr-crops/{event.crop_path}"
 
     return EventResponse(**event_dict)
 
@@ -124,7 +108,7 @@ async def confirm_event(
 
     event.review_state = ReviewState.CONFIRMED
     event.reviewed_by = current_user.id
-    event.reviewed_at = datetime.utcnow()
+    event.reviewed_at = datetime.now(timezone.utc)
     event.notes = request.notes
 
     await db.commit()
@@ -134,14 +118,7 @@ async def confirm_event(
 
     event_dict = EventResponse.model_validate(event).model_dump()
     if event.crop_path:
-        storage = get_storage_service()
-        try:
-            event_dict['crop_url'] = await storage.get_presigned_url(
-                settings.STORAGE_CROPS_BUCKET, event.crop_path, expiry=3600
-            )
-        except Exception as e:
-            logger.warning(f"Failed to generate presigned URL for {event.crop_path}: {e}")
-            event_dict['crop_url'] = None
+        event_dict['crop_url'] = f"/media/anpr-crops/{event.crop_path}"
 
     return EventResponse(**event_dict)
 
@@ -171,7 +148,7 @@ async def create_correction(
 
     event.review_state = ReviewState.CORRECTED
     event.reviewed_by = current_user.id
-    event.reviewed_at = datetime.utcnow()
+    event.reviewed_at = datetime.now(timezone.utc)
 
     await db.commit()
     await db.refresh(correction)

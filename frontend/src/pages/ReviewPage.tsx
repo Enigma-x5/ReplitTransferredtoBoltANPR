@@ -174,7 +174,7 @@ export default function ReviewPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Captured:</span>
-                    <span>{new Date(event.captured_at).toLocaleString()}</span>
+                    <span>{new Date(event.captured_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</span>
                   </div>
                 </div>
 
