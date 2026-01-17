@@ -91,3 +91,5 @@ Thumbs.db
 # .replit (keep this file!)
 # replit.nix (keep this file!)
 .env
+
+storage
