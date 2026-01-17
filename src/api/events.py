@@ -109,7 +109,7 @@ async def confirm_event(
 
         event.review_state = ReviewState.CONFIRMED
         event.reviewed_by = current_user.id
-        event.reviewed_at = datetime.now(timezone.utc)
+        event.reviewed_at = datetime.utcnow()
         event.notes = request.notes
 
         await db.commit()
@@ -156,7 +156,7 @@ async def create_correction(
 
         event.review_state = ReviewState.CORRECTED
         event.reviewed_by = current_user.id
-        event.reviewed_at = datetime.now(timezone.utc)
+        event.reviewed_at = datetime.utcnow()
 
         await db.commit()
         await db.refresh(correction)
