@@ -100,27 +100,34 @@ async def confirm_event(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(Event).where(Event.id == event_id))
-    event = result.scalar_one_or_none()
+    try:
+        result = await db.execute(select(Event).where(Event.id == event_id))
+        event = result.scalar_one_or_none()
 
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
+        if not event:
+            raise HTTPException(status_code=404, detail="Event not found")
 
-    event.review_state = ReviewState.CONFIRMED
-    event.reviewed_by = current_user.id
-    event.reviewed_at = datetime.now(timezone.utc)
-    event.notes = request.notes
+        event.review_state = ReviewState.CONFIRMED
+        event.reviewed_by = current_user.id
+        event.reviewed_at = datetime.now(timezone.utc)
+        event.notes = request.notes
 
-    await db.commit()
-    await db.refresh(event)
+        await db.commit()
+        await db.refresh(event)
 
-    logger.info("Event confirmed", event_id=str(event_id), confirmed_by=str(current_user.id))
+        logger.info("Event confirmed", event_id=str(event_id), confirmed_by=str(current_user.id))
 
-    event_dict = EventResponse.model_validate(event).model_dump()
-    if event.crop_path:
-        event_dict['crop_url'] = f"/media/anpr-crops/{event.crop_path}"
+        event_dict = EventResponse.model_validate(event).model_dump()
+        if event.crop_path:
+            event_dict['crop_url'] = f"/media/anpr-crops/{event.crop_path}"
 
-    return EventResponse(**event_dict)
+        return EventResponse(**event_dict)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Failed to confirm event", event_id=str(event_id), error=str(e))
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to confirm event: {str(e)}")
 
 
 @router.post("/{event_id}/correction", response_model=CorrectionResponse, status_code=201)
@@ -130,35 +137,42 @@ async def create_correction(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(Event).where(Event.id == event_id))
-    event = result.scalar_one_or_none()
+    try:
+        result = await db.execute(select(Event).where(Event.id == event_id))
+        event = result.scalar_one_or_none()
 
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
+        if not event:
+            raise HTTPException(status_code=404, detail="Event not found")
 
-    correction = Correction(
-        event_id=event_id,
-        original_plate=event.plate,
-        corrected_plate=correction_data.corrected_plate,
-        corrected_by=current_user.id,
-        confidence_before=event.confidence,
-        comments=correction_data.comments,
-    )
-    db.add(correction)
+        correction = Correction(
+            event_id=event_id,
+            original_plate=event.plate,
+            corrected_plate=correction_data.corrected_plate,
+            corrected_by=current_user.id,
+            confidence_before=event.confidence,
+            comments=correction_data.comments,
+        )
+        db.add(correction)
 
-    event.review_state = ReviewState.CORRECTED
-    event.reviewed_by = current_user.id
-    event.reviewed_at = datetime.now(timezone.utc)
+        event.review_state = ReviewState.CORRECTED
+        event.reviewed_by = current_user.id
+        event.reviewed_at = datetime.now(timezone.utc)
 
-    await db.commit()
-    await db.refresh(correction)
+        await db.commit()
+        await db.refresh(correction)
 
-    logger.info(
-        "Correction created",
-        event_id=str(event_id),
-        original=event.plate,
-        corrected=correction_data.corrected_plate,
-        by=str(current_user.id)
-    )
+        logger.info(
+            "Correction created",
+            event_id=str(event_id),
+            original=event.plate,
+            corrected=correction_data.corrected_plate,
+            by=str(current_user.id)
+        )
 
-    return CorrectionResponse.model_validate(correction)
+        return CorrectionResponse.model_validate(correction)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Failed to create correction", event_id=str(event_id), error=str(e))
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to create correction: {str(e)}")
