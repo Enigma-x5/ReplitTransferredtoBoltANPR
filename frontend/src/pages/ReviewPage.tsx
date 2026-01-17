@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { apiClient } from '@/api/client';
+import { apiClient, API_BASE_URL } from '@/api/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -124,6 +124,15 @@ export default function ReviewPage() {
     return new Date(normalized).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
   };
 
+  const getImageUrl = (crop_url?: string) => {
+    if (!crop_url) return '';
+    if (crop_url.startsWith('/media/')) {
+      const baseUrl = API_BASE_URL.replace(/\/api\/?$/, '');
+      return `${baseUrl}${crop_url}`;
+    }
+    return crop_url;
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -161,7 +170,7 @@ export default function ReviewPage() {
                 {event.crop_url ? (
                   <div className="aspect-video bg-muted rounded-lg overflow-hidden">
                     <img
-                      src={event.crop_url}
+                      src={getImageUrl(event.crop_url)}
                       alt={`License plate ${event.plate}`}
                       className="w-full h-full object-contain"
                     />
