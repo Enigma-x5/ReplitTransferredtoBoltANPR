@@ -1,6 +1,8 @@
 import random
 import re
 import numpy as np
+import subprocess
+import tempfile
 from pathlib import Path
 from typing import Dict, Generator, Any, Optional
 from datetime import datetime
@@ -20,6 +22,59 @@ class MockDetector:
         self.crops_logged = 0
         self.max_crop_logs = 5
         logger.info("Mock detector initialized", threshold=self.confidence_threshold)
+
+    def _extract_frame_with_ffmpeg(self, video_path: str, frame_no: int) -> Optional[np.ndarray]:
+        """Extract a single frame using ffmpeg CLI and load with PIL."""
+        try:
+            from PIL import Image
+
+            # Create temporary file for extracted frame
+            with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp_file:
+                tmp_path = tmp_file.name
+
+            # Use ffmpeg to extract specific frame
+            cmd = [
+                'ffmpeg',
+                '-y',
+                '-i', video_path,
+                '-vf', f'select=eq(n\\,{frame_no})',
+                '-vframes', '1',
+                tmp_path
+            ]
+
+            result = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=10
+            )
+
+            if result.returncode != 0 or not Path(tmp_path).exists():
+                logger.warning("ffmpeg extraction failed", frame_no=frame_no, returncode=result.returncode)
+                Path(tmp_path).unlink(missing_ok=True)
+                return None
+
+            logger.info("ffmpeg frame extracted", frame_no=frame_no, tmp_path=tmp_path)
+
+            # Load with PIL and convert to numpy array (RGB)
+            img = Image.open(tmp_path)
+            frame_rgb = np.array(img)
+
+            # Convert RGB to BGR for OpenCV compatibility
+            if frame_rgb.ndim == 3 and frame_rgb.shape[2] == 3:
+                frame_bgr = frame_rgb[:, :, ::-1].copy()
+            else:
+                frame_bgr = frame_rgb
+
+            # Clean up temp file
+            Path(tmp_path).unlink(missing_ok=True)
+
+            logger.info("Frame loaded via ffmpeg+PIL", shape=frame_bgr.shape, dtype=frame_bgr.dtype)
+            return frame_bgr
+
+        except Exception as e:
+            logger.error("ffmpeg frame extraction failed", frame_no=frame_no, error=str(e))
+            return None
 
     def _extract_real_crop(self, frame: np.ndarray, bbox: dict, frame_no: int) -> Optional[np.ndarray]:
         """Extract real crop from video frame with validation and clamping."""
@@ -81,15 +136,20 @@ class MockDetector:
             "DL8CAB5678",
         ]
 
-        # Try to decode real video frames
+        # Try to decode real video frames with cv2
+        cv2_available = False
+        cap = None
         try:
             import cv2
             cap = cv2.VideoCapture(video_path)
             if not cap.isOpened():
-                logger.warning("Cannot open video, skipping real crops", path=video_path)
+                logger.warning("Cannot open video with cv2, will use ffmpeg fallback", path=video_path)
                 cap = None
-        except ImportError:
-            logger.warning("cv2 not available, skipping real crops")
+            else:
+                cv2_available = True
+                logger.info("Using cv2 for frame extraction")
+        except (ImportError, AttributeError) as e:
+            logger.warning("cv2 not available, using ffmpeg fallback", error=str(e))
             cap = None
 
         num_detections = random.randint(2, 5)
@@ -102,12 +162,17 @@ class MockDetector:
             frame_no = i * 30
 
             # Try to read actual frame from video
-            if cap is not None:
+            if cv2_available and cap is not None:
+                # Use cv2 method
+                import cv2
                 cap.set(cv2.CAP_PROP_POS_FRAMES, frame_no)
                 ret, frame = cap.read()
                 if not ret or frame is None:
-                    logger.warning("Failed to read frame", frame_no=frame_no)
+                    logger.warning("Failed to read frame with cv2", frame_no=frame_no)
                     frame = None
+            else:
+                # Use ffmpeg fallback
+                frame = self._extract_frame_with_ffmpeg(video_path, frame_no)
 
             # Generate random bbox that fits within frame if available
             if frame is not None:
