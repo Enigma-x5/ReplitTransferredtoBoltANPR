@@ -112,7 +112,6 @@ _debug_frame_saved = {}
 async def save_event(db: AsyncSession, upload: Upload, detection: dict) -> Event:
     from PIL import Image
     import numpy as np
-    import cv2
 
     job_id = str(upload.id)
     frame_no = detection.get("frame_no", 0)
@@ -140,7 +139,9 @@ async def save_event(db: AsyncSession, upload: Upload, detection: dict) -> Event
             debug_dir.mkdir(parents=True, exist_ok=True)
             debug_path = debug_dir / f"fullframe_{job_id}_frame{frame_no}.jpg"
             try:
-                cv2.imwrite(str(debug_path), frame_array)
+                # Convert BGR to RGB without cv2
+                frame_rgb = frame_array[..., ::-1].copy()
+                Image.fromarray(frame_rgb.astype('uint8')).save(str(debug_path), format='JPEG', quality=90)
                 logger.info("DEBUG_FULLFRAME_SAVED", path=str(debug_path), shape=frame_array.shape)
             except Exception as e:
                 logger.error("DEBUG_FULLFRAME_SAVE_FAILED", error=str(e))
@@ -182,12 +183,12 @@ async def save_event(db: AsyncSession, upload: Upload, detection: dict) -> Event
                 msg="Crop is solid color - likely decode failure"
             )
 
-        # Convert BGR (OpenCV) to RGB (PIL)
-        crop_rgb = cv2.cvtColor(crop_array, cv2.COLOR_BGR2RGB)
+        # Convert BGR (OpenCV) to RGB (PIL) without cv2
+        crop_rgb = crop_array[..., ::-1].copy()
         img = Image.fromarray(crop_rgb.astype('uint8'))
 
         crop_file = BytesIO()
-        img.save(crop_file, format='JPEG')
+        img.save(crop_file, format='JPEG', quality=90)
         crop_file.seek(0)
 
         await storage_service.upload_file(
