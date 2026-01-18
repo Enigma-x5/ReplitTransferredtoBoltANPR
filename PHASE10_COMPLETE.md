@@ -15,6 +15,19 @@ DETECTION_CONFIDENCE_THRESHOLD: float = 0.30
 FRAME_EXTRACTION_FPS: int = 1
 ```
 
+### Replit Environment
+
+The `.replit` file has been updated with Phase 10 defaults:
+
+```toml
+[userenv.shared]
+DETECTOR_BACKEND = "yolo_ffmpeg"
+DETECTION_CONFIDENCE_THRESHOLD = "0.30"
+DETECT_CONFIDENCE = "0.30"
+FRAME_EXTRACTION_FPS = "1"
+DEVICE = "cpu"
+```
+
 Running `python scripts/detector_smoketest.py` will attempt to initialize the real YOLO+EasyOCR detector.
 
 ## Implementation (Phase 10 Spike)
