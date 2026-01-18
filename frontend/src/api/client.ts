@@ -167,6 +167,11 @@ class APIClient {
     return response.data;
   }
 
+  async toggleBOLO(boloId: string) {
+    const response = await this.client.patch(`/bolos/${boloId}/toggle`);
+    return response.data;
+  }
+
   // License endpoints
   async activateLicense(data: { license_key: string; node_id?: string }) {
     const response = await this.client.post('/licenses/activate', data);

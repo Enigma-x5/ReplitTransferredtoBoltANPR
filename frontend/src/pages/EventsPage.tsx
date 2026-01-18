@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { apiClient } from '@/api/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,10 +35,11 @@ interface Event {
 }
 
 export default function EventsPage() {
+  const [searchParams] = useSearchParams();
   const [events, setEvents] = useState<Event[]>([]);
   const [cameras, setCameras] = useState<any[]>([]);
   const [filters, setFilters] = useState({
-    plate: '',
+    plate: searchParams.get('plate') || '',
     camera_id: '',
     from_ts: '',
     to_ts: '',
@@ -46,8 +48,11 @@ export default function EventsPage() {
 
   useEffect(() => {
     loadCameras();
-    loadEvents();
   }, []);
+
+  useEffect(() => {
+    loadEvents();
+  }, [filters.plate]);
 
   const loadCameras = async () => {
     try {

@@ -42,3 +42,24 @@ async def list_bolos(
     result = await db.execute(select(BOLO).order_by(BOLO.created_at.desc()))
     bolos = result.scalars().all()
     return [BOLOResponse.model_validate(bolo) for bolo in bolos]
+
+
+@router.patch("/{bolo_id}/toggle", response_model=BOLOResponse)
+async def toggle_bolo(
+    bolo_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    result = await db.execute(select(BOLO).where(BOLO.id == bolo_id))
+    bolo = result.scalar_one_or_none()
+
+    if not bolo:
+        raise HTTPException(status_code=404, detail="BOLO not found")
+
+    bolo.active = not bolo.active
+    await db.commit()
+    await db.refresh(bolo)
+
+    logger.info("BOLO toggled", bolo_id=str(bolo.id), active=bolo.active)
+
+    return BOLOResponse.model_validate(bolo)
