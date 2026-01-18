@@ -176,6 +176,19 @@ def main():
     print("DETECTOR SMOKE TEST")
     print("=" * 60 + "\n")
 
+    if settings.DETECTOR_BACKEND == "yolo_ffmpeg":
+        print("!" * 60)
+        print("! REAL DETECTOR MODE (YOLO + EasyOCR)")
+        print("! Dependencies required: torch, ultralytics, easyocr, ffmpeg")
+        print("!" * 60 + "\n")
+    elif settings.DETECTOR_BACKEND == "yolo":
+        print("!" * 60)
+        print("! REAL DETECTOR MODE (YOLO + EasyOCR + cv2)")
+        print("! Dependencies required: opencv-python, ultralytics, easyocr")
+        print("!" * 60 + "\n")
+    elif settings.DETECTOR_BACKEND == "mock":
+        print("(Mock detector mode - no ML dependencies required)\n")
+
     # Print configuration
     print_config()
 

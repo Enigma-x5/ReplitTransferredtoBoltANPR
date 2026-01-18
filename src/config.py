@@ -36,9 +36,9 @@ class Settings(BaseSettings):
     WORKER_CONCURRENCY: int = 4
     WORKER_BATCH_SIZE: int = 10
 
-    DETECTOR_BACKEND: str = "mock"
-    DETECTION_CONFIDENCE_THRESHOLD: float = 0.7
-    FRAME_EXTRACTION_FPS: int = 2
+    DETECTOR_BACKEND: str = "yolo_ffmpeg"
+    DETECTION_CONFIDENCE_THRESHOLD: float = 0.30
+    FRAME_EXTRACTION_FPS: int = 1
 
     CORS_ORIGINS: str = "http://localhost:3000"
 

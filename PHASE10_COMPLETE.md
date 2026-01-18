@@ -4,6 +4,19 @@
 
 Phase 10 implements and hardens a real YOLO+EasyOCR license plate detector that uses ffmpeg for frame extraction, avoiding cv2 reliability issues in Replit. The implementation is repo-controlled, runtime-safe, and includes comprehensive diagnostics.
 
+## PHASE 10 ACTIVATED
+
+As of the latest update, the **default** detector backend is now `yolo_ffmpeg`:
+
+```python
+# src/config.py defaults (Phase 10 spike branch)
+DETECTOR_BACKEND: str = "yolo_ffmpeg"
+DETECTION_CONFIDENCE_THRESHOLD: float = 0.30
+FRAME_EXTRACTION_FPS: int = 1
+```
+
+Running `python scripts/detector_smoketest.py` will attempt to initialize the real YOLO+EasyOCR detector.
+
 ## Implementation (Phase 10 Spike)
 
 ### Core Detector
