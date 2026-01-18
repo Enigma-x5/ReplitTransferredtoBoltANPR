@@ -20,6 +20,10 @@ def get_detector(backend: str = None):
         logger.info("Loading YOLO detector")
         from src.detectors.yolo_easyocr_adapter import process_video
         return process_video
+    elif backend == "yolo_ffmpeg":
+        logger.info("Loading YOLO+EasyOCR detector with ffmpeg frame extraction")
+        from src.detectors.yolo_easyocr_ffmpeg import process_video
+        return process_video
     elif backend == "mock":
         logger.info("Loading mock detector")
         from src.detectors.mock_detector import process_video
