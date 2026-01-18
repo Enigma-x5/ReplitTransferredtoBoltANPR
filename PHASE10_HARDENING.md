@@ -143,7 +143,8 @@ Testing detector backend initialization...
 Backend: yolo_ffmpeg
 
 Testing YOLO+FFmpeg backend dependencies...
-✓ ffmpeg available: ffmpeg version 4.4.2
+✓ ffmpeg found at: /usr/bin/ffmpeg
+  (version check skipped for Replit compatibility)
 ✓ torch imported (version: 2.1.0)
   CUDA available: False
 ✓ ultralytics imported
@@ -164,7 +165,13 @@ You can now run the worker or upload videos for processing.
 |---------|--------|
 | `mock` | Import only (always succeeds) |
 | `yolo` | cv2, easyocr, ultralytics imports |
-| `yolo_ffmpeg` | ffmpeg binary, torch, ultralytics, easyocr, PIL, numpy imports |
+| `yolo_ffmpeg` | ffmpeg binary (shutil.which), torch, ultralytics, easyocr, PIL, numpy imports |
+
+**Replit Compatibility:**
+- Uses `shutil.which("ffmpeg")` to check ffmpeg binary existence
+- Does NOT run `ffmpeg --version` (avoids Replit Nix environment timeout issues)
+- Version check is skipped with clear message: "version check skipped for Replit compatibility"
+- Actual ffmpeg execution happens during frame extraction, not during init
 
 ## Workflow
 

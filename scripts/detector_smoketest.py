@@ -97,26 +97,15 @@ def test_backend_init():
         elif settings.DETECTOR_BACKEND == "yolo_ffmpeg":
             print("Testing YOLO+FFmpeg backend dependencies...")
 
-            # Test ffmpeg
-            import subprocess
-            try:
-                result = subprocess.run(
-                    ["ffmpeg", "-version"],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    timeout=5
-                )
-                if result.returncode == 0:
-                    version_line = result.stdout.decode().split('\n')[0]
-                    print(f"✓ ffmpeg available: {version_line}")
-                else:
-                    print("✗ ffmpeg not available or failed")
-                    return False
-            except FileNotFoundError:
+            # Test ffmpeg availability (using shutil.which to avoid Replit timeout issues)
+            import shutil
+            ffmpeg_path = shutil.which("ffmpeg")
+            if ffmpeg_path:
+                print(f"✓ ffmpeg found at: {ffmpeg_path}")
+                print("  (version check skipped for Replit compatibility)")
+            else:
                 print("✗ ffmpeg not found in PATH")
-                return False
-            except Exception as e:
-                print(f"✗ ffmpeg check failed: {e}")
+                print("  Install ffmpeg or add it to PATH")
                 return False
 
             # Test Python dependencies

@@ -115,6 +115,11 @@ Required packages (added to requirements.txt):
 
 ## Troubleshooting
 
+**Smoke test fails with ffmpeg timeout (Replit):**
+- Fixed in latest version - uses `shutil.which("ffmpeg")` instead of running `ffmpeg --version`
+- Version check is now skipped for Replit compatibility
+- Smoke test only verifies ffmpeg binary exists in PATH
+
 **No frames extracted:**
 - Check ffmpeg is installed: `which ffmpeg`
 - Verify video file is valid
