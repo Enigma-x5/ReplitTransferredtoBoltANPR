@@ -269,7 +269,10 @@ async def send_bolo_notification(bolo: BOLO, event: Event):
 
 
 async def worker_loop():
+    from src.services.detector_adapter import log_detector_config
+
     logger.info("Worker started", concurrency=settings.WORKER_CONCURRENCY)
+    log_detector_config()
 
     while True:
         try:

@@ -18,20 +18,72 @@ def get_detector(backend: str = None):
 
     if backend == "yolo":
         logger.info("Loading YOLO detector")
-        from src.detectors.yolo_easyocr_adapter import process_video
-        return process_video
+        try:
+            from src.detectors.yolo_easyocr_adapter import process_video
+            return process_video
+        except Exception as e:
+            logger.error(
+                "YOLO_BACKEND_INIT_FAILED",
+                error=str(e),
+                error_type=type(e).__name__,
+                fallback="mock"
+            )
+            logger.warning("Falling back to mock detector due to YOLO backend init failure")
+            from src.detectors.mock_detector import process_video
+            return process_video
+
     elif backend == "yolo_ffmpeg":
         logger.info("Loading YOLO+EasyOCR detector with ffmpeg frame extraction")
-        from src.detectors.yolo_easyocr_ffmpeg import process_video
-        return process_video
+        try:
+            from src.detectors.yolo_easyocr_ffmpeg import process_video
+            return process_video
+        except Exception as e:
+            logger.error(
+                "YOLO_FFMPEG_BACKEND_INIT_FAILED",
+                error=str(e),
+                error_type=type(e).__name__,
+                fallback="mock",
+                hint="Install dependencies: pip install torch ultralytics easyocr"
+            )
+            logger.warning("Falling back to mock detector due to YOLO_FFMPEG backend init failure")
+            from src.detectors.mock_detector import process_video
+            return process_video
+
     elif backend == "mock":
         logger.info("Loading mock detector")
         from src.detectors.mock_detector import process_video
         return process_video
+
     else:
         logger.warning(f"Unknown detector backend: {backend}, falling back to mock")
         from src.detectors.mock_detector import process_video
         return process_video
+
+
+def log_detector_config():
+    """Log effective detector configuration at startup."""
+    config = {
+        "detector_backend": settings.DETECTOR_BACKEND,
+        "detection_confidence_threshold": settings.DETECTION_CONFIDENCE_THRESHOLD,
+        "frame_extraction_fps": settings.FRAME_EXTRACTION_FPS,
+    }
+
+    # Add backend-specific config
+    if settings.DETECTOR_BACKEND in ["yolo", "yolo_ffmpeg"]:
+        import os
+        config.update({
+            "yolo_model": os.getenv("YOLO_MODEL", "keremberke/yolov8n-license-plate"),
+            "detect_confidence": os.getenv("DETECT_CONFIDENCE", "0.30"),
+            "device": os.getenv("DEVICE", "auto-detect"),
+        })
+
+        if settings.DETECTOR_BACKEND == "yolo_ffmpeg":
+            config.update({
+                "min_box_width": os.getenv("MIN_BOX_WIDTH", "20"),
+                "min_box_height": os.getenv("MIN_BOX_HEIGHT", "10"),
+            })
+
+    logger.info("Detector configuration", **config)
 
 
 class DetectorAdapter:
