@@ -30,6 +30,7 @@ interface Event {
   camera_id: string;
   captured_at: string;
   review_state: string;
+  is_bolo_match?: boolean;
 }
 
 export default function EventsPage() {
@@ -226,7 +227,14 @@ export default function EventsPage() {
                   events.map((event) => (
                     <TableRow key={event.id}>
                       <TableCell className="font-mono font-medium">
-                        {event.plate}
+                        <span className="flex items-center gap-2">
+                          {event.plate}
+                          {event.is_bolo_match && (
+                            <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-destructive text-destructive-foreground">
+                              BOLO
+                            </span>
+                          )}
+                        </span>
                       </TableCell>
                       <TableCell className="font-mono text-muted-foreground">
                         {event.normalized_plate}

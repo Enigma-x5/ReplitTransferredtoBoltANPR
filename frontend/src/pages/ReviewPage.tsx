@@ -25,6 +25,7 @@ interface PendingEvent {
   captured_at: string;
   crop_path?: string;
   crop_url?: string;
+  is_bolo_match?: boolean;
 }
 
 export default function ReviewPage() {
@@ -160,7 +161,14 @@ export default function ReviewPage() {
             <Card key={event.id} className="overflow-hidden">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center justify-between">
-                  <span className="font-mono text-lg">{event.plate}</span>
+                  <span className="flex items-center gap-2">
+                    <span className="font-mono text-lg">{event.plate}</span>
+                    {event.is_bolo_match && (
+                      <span className="px-1.5 py-0.5 rounded text-xs font-semibold bg-destructive text-destructive-foreground">
+                        BOLO
+                      </span>
+                    )}
+                  </span>
                   <span className={`text-sm ${getConfidenceColor(event.confidence)}`}>
                     {getConfidenceBadge(event.confidence)} ({(event.confidence * 100).toFixed(1)}%)
                   </span>

@@ -27,6 +27,7 @@ class EventResponse(BaseModel):
     crop_url: Optional[str] = None
     review_state: ReviewState
     created_at: datetime
+    is_bolo_match: bool = False
 
     class Config:
         from_attributes = True

@@ -1,3 +1,4 @@
+import re
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -9,6 +10,7 @@ from sqlalchemy import select
 from src.auth import get_current_user
 from src.database import get_db
 from src.models.event import Event, ReviewState
+from src.models.bolo import BOLO
 from src.models.export import Export, ExportStatus
 from src.models.user import User
 from src.schemas.event import EventListResponse, EventResponse
@@ -17,6 +19,10 @@ from src.logging_config import get_logger
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/feedback", tags=["Feedback"])
+
+
+def _norm(s: str) -> str:
+    return re.sub(r"\s+", "", (s or "").upper()).strip()
 
 
 @router.get("/pending", response_model=EventListResponse)
@@ -35,11 +41,16 @@ async def list_pending_feedback(
     result = await db.execute(query)
     events = result.scalars().all()
 
+    bolo_result = await db.execute(select(BOLO.plate_pattern).where(BOLO.active == True))
+    bolo_patterns = {_norm(row[0]) for row in bolo_result.fetchall()}
+
     items = []
     for event in events:
         event_dict = EventResponse.model_validate(event).model_dump()
         if event.crop_path:
             event_dict['crop_url'] = f"/media/anpr-crops/{event.crop_path}"
+        plate_norm = _norm(event.normalized_plate or event.plate)
+        event_dict['is_bolo_match'] = plate_norm in bolo_patterns
         items.append(EventResponse(**event_dict))
 
     return EventListResponse(
