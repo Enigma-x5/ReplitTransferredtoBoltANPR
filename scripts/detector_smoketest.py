@@ -115,6 +115,7 @@ def test_backend_init():
                 print(f"  CUDA available: {torch.cuda.is_available()}")
             except ImportError as e:
                 print(f"✗ torch import failed: {e}")
+                print("  Hint: Torch not installed. Ensure workflows run 'pip install -r requirements.txt' before starting.")
                 return False
 
             try:
@@ -122,6 +123,7 @@ def test_backend_init():
                 print("✓ ultralytics imported")
             except ImportError as e:
                 print(f"✗ ultralytics import failed: {e}")
+                print("  Hint: Ultralytics not installed. Ensure workflows run 'pip install -r requirements.txt' before starting.")
                 return False
 
             try:
@@ -129,6 +131,7 @@ def test_backend_init():
                 print("✓ easyocr imported")
             except ImportError as e:
                 print(f"✗ easyocr import failed: {e}")
+                print("  Hint: EasyOCR not installed. Ensure workflows run 'pip install -r requirements.txt' before starting.")
                 return False
 
             try:

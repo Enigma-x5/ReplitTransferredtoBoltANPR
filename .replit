@@ -47,7 +47,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python -m uvicorn src.main:app --host 0.0.0.0 --port 8000"
+args = "pip install -r requirements.txt && python -m uvicorn src.main:app --host 0.0.0.0 --port 8000"
 waitForPort = 8000
 
 [workflows.workflow.metadata]
@@ -71,7 +71,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python -m src.worker"
+args = "pip install -r requirements.txt && python -m src.worker"
 
 [workflows.workflow.metadata]
 outputType = "console"
