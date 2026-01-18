@@ -1,7 +1,18 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import { tokenStorage } from '@/auth/tokenStorage';
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+function getAPIBaseURL(): string {
+  const envBase = import.meta.env.VITE_API_BASE_URL;
+  if (envBase) {
+    return envBase;
+  }
+
+  // Dynamically target port 8000 on the same host
+  const { protocol, hostname } = window.location;
+  return `${protocol}//${hostname}:8000/api`;
+}
+
+export const API_BASE_URL = getAPIBaseURL();
 
 class APIClient {
   private client: AxiosInstance;
