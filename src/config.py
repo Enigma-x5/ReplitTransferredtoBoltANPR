@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     DETECTION_CONFIDENCE_THRESHOLD: float = 0.30
     FRAME_EXTRACTION_FPS: int = 1
 
+    REMOTE_INFERENCE_URL: str = ""
+    REMOTE_INFERENCE_TOKEN: str = ""
+
     CORS_ORIGINS: str = "http://localhost:3000"
 
     PROMETHEUS_ENABLED: bool = True

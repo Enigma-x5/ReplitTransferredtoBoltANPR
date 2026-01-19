@@ -49,6 +49,12 @@ def print_config():
                 "MIN_BOX_HEIGHT": os.getenv("MIN_BOX_HEIGHT", "10"),
             })
 
+    elif settings.DETECTOR_BACKEND == "remote":
+        config.update({
+            "REMOTE_INFERENCE_URL": settings.REMOTE_INFERENCE_URL,
+            "AUTH_CONFIGURED": bool(settings.REMOTE_INFERENCE_TOKEN),
+        })
+
     for key, value in config.items():
         print(f"  {key:35s} = {value}")
 
@@ -148,6 +154,44 @@ def test_backend_init():
 
             return True
 
+        elif settings.DETECTOR_BACKEND == "remote":
+            print("Testing remote inference backend...")
+
+            # Check that URL is configured
+            if not settings.REMOTE_INFERENCE_URL:
+                print("✗ REMOTE_INFERENCE_URL is not set")
+                print("  Set REMOTE_INFERENCE_URL to the inference service endpoint")
+                return False
+
+            print(f"✓ Remote URL configured: {settings.REMOTE_INFERENCE_URL}")
+
+            # Check connectivity with health endpoint
+            try:
+                import httpx
+                health_url = f"{settings.REMOTE_INFERENCE_URL.rstrip('/')}/health"
+                print(f"  Testing connectivity to: {health_url}")
+
+                with httpx.Client(timeout=3.0) as client:
+                    response = client.get(health_url)
+                    if response.status_code == 200:
+                        print(f"✓ Remote service is reachable (status: {response.status_code})")
+                    else:
+                        print(f"✗ Remote service returned unexpected status: {response.status_code}")
+                        print(f"  Response: {response.text[:200]}")
+                        return False
+
+            except Exception as e:
+                print(f"✗ Failed to connect to remote service: {e}")
+                print(f"  URL: {settings.REMOTE_INFERENCE_URL}")
+                print("  Check that the service is running and accessible")
+                return False
+
+            # Test detector import
+            from src.detectors.remote_inference import process_video
+            print("✓ Remote inference detector imported successfully")
+
+            return True
+
         else:
             print(f"✗ Unknown backend: {settings.DETECTOR_BACKEND}")
             return False
@@ -177,6 +221,11 @@ def main():
         print("!" * 60)
         print("! REAL DETECTOR MODE (YOLO + EasyOCR + cv2)")
         print("! Dependencies required: opencv-python, ultralytics, easyocr")
+        print("!" * 60 + "\n")
+    elif settings.DETECTOR_BACKEND == "remote":
+        print("!" * 60)
+        print("! REMOTE INFERENCE MODE")
+        print("! Requires: Remote inference service running and accessible")
         print("!" * 60 + "\n")
     elif settings.DETECTOR_BACKEND == "mock":
         print("(Mock detector mode - no ML dependencies required)\n")

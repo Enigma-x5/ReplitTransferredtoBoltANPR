@@ -49,6 +49,23 @@ def get_detector(backend: str = None):
             from src.detectors.mock_detector import process_video
             return process_video
 
+    elif backend == "remote":
+        logger.info("Loading remote inference detector")
+        try:
+            from src.detectors.remote_inference import process_video
+            return process_video
+        except Exception as e:
+            logger.error(
+                "REMOTE_BACKEND_INIT_FAILED",
+                error=str(e),
+                error_type=type(e).__name__,
+                fallback="mock",
+                hint="Check REMOTE_INFERENCE_URL and network connectivity"
+            )
+            logger.warning("Falling back to mock detector due to remote backend init failure")
+            from src.detectors.mock_detector import process_video
+            return process_video
+
     elif backend == "mock":
         logger.info("Loading mock detector")
         from src.detectors.mock_detector import process_video
@@ -82,6 +99,12 @@ def log_detector_config():
                 "min_box_width": os.getenv("MIN_BOX_WIDTH", "20"),
                 "min_box_height": os.getenv("MIN_BOX_HEIGHT", "10"),
             })
+
+    elif settings.DETECTOR_BACKEND == "remote":
+        config.update({
+            "remote_inference_url": settings.REMOTE_INFERENCE_URL,
+            "auth_configured": bool(settings.REMOTE_INFERENCE_TOKEN),
+        })
 
     logger.info("Detector configuration", **config)
 
