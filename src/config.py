@@ -43,6 +43,8 @@ class Settings(BaseSettings):
 
     REMOTE_INFERENCE_URL: str = ""
     REMOTE_INFERENCE_TOKEN: str = ""
+    REMOTE_FRAME_BATCH_SIZE: int = 8
+    REMOTE_FRAME_TIMEOUT_S: int = 90
 
     CORS_ORIGINS: str = "http://localhost:3000"
 
