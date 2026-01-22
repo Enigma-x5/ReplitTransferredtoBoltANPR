@@ -1,4 +1,5 @@
 from typing import Literal
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -62,6 +63,14 @@ class Settings(BaseSettings):
     EMAIL_FROM: str = "alerts@yourdomain.com"
 
     OLA_MAPS_API_KEY: str = ""
+
+    @field_validator('REMOTE_INFERENCE_URL', mode='before')
+    @classmethod
+    def strip_remote_inference_url(cls, v):
+        """Strip whitespace from REMOTE_INFERENCE_URL to prevent DNS lookup failures."""
+        if isinstance(v, str):
+            return v.strip()
+        return v
 
     @property
     def cors_origins_list(self) -> list[str]:

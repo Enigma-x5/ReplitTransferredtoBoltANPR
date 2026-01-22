@@ -33,6 +33,7 @@ class RemoteInferenceDetector:
         logger.info(
             "REMOTE_DETECTOR_INIT",
             url=self.inference_url,
+            url_repr=repr(self.inference_url),
             auth_configured=bool(self.auth_token)
         )
 
@@ -42,7 +43,7 @@ class RemoteInferenceDetector:
         """Verify remote service is reachable via /health endpoint. Fail fast if not."""
         health_url = f"{self.inference_url.rstrip('/')}/health"
 
-        logger.info("REMOTE_HEALTH_CHECK_START", url=health_url)
+        logger.info("REMOTE_HEALTH_CHECK_START", url=health_url, url_repr=repr(health_url))
 
         try:
             with httpx.Client(timeout=3.0) as client:
@@ -105,6 +106,7 @@ class RemoteInferenceDetector:
         logger.info(
             "REMOTE_INFER_REQUEST_START",
             url=endpoint,
+            url_repr=repr(endpoint),
             camera_id=camera_id or "unknown",
             video_path=video_path,
             filesize_bytes=filesize_bytes
