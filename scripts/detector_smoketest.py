@@ -165,30 +165,21 @@ def test_backend_init():
 
             print(f"✓ Remote URL configured: {settings.REMOTE_INFERENCE_URL}")
 
-            # Check connectivity with health endpoint
+            # Test detector initialization (includes health check)
             try:
-                import httpx
-                health_url = f"{settings.REMOTE_INFERENCE_URL.rstrip('/')}/health"
-                print(f"  Testing connectivity to: {health_url}")
+                from src.detectors.remote_inference import RemoteInferenceDetector
+                print("  Initializing detector (includes health check)...")
 
-                with httpx.Client(timeout=3.0) as client:
-                    response = client.get(health_url)
-                    if response.status_code == 200:
-                        print(f"✓ Remote service is reachable (status: {response.status_code})")
-                    else:
-                        print(f"✗ Remote service returned unexpected status: {response.status_code}")
-                        print(f"  Response: {response.text[:200]}")
-                        return False
+                detector = RemoteInferenceDetector()
+                print("✓ Remote inference detector initialized successfully")
+                print("✓ Health check passed")
 
             except Exception as e:
-                print(f"✗ Failed to connect to remote service: {e}")
+                print(f"✗ Failed to initialize remote detector: {e}")
                 print(f"  URL: {settings.REMOTE_INFERENCE_URL}")
                 print("  Check that the service is running and accessible")
+                print("  The service must expose GET /health endpoint")
                 return False
-
-            # Test detector import
-            from src.detectors.remote_inference import process_video
-            print("✓ Remote inference detector imported successfully")
 
             return True
 

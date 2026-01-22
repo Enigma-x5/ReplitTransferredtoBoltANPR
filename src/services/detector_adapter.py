@@ -51,20 +51,8 @@ def get_detector(backend: str = None):
 
     elif backend == "remote":
         logger.info("Loading remote inference detector")
-        try:
-            from src.detectors.remote_inference import process_video
-            return process_video
-        except Exception as e:
-            logger.error(
-                "REMOTE_BACKEND_INIT_FAILED",
-                error=str(e),
-                error_type=type(e).__name__,
-                fallback="mock",
-                hint="Check REMOTE_INFERENCE_URL and network connectivity"
-            )
-            logger.warning("Falling back to mock detector due to remote backend init failure")
-            from src.detectors.mock_detector import process_video
-            return process_video
+        from src.detectors.remote_inference import process_video
+        return process_video
 
     elif backend == "mock":
         logger.info("Loading mock detector")
