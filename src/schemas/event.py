@@ -23,7 +23,7 @@ class EventResponse(BaseModel):
     bbox: dict
     captured_at: datetime
     frame_no: int
-    crop_path: str
+    crop_path: Optional[str] = None  # Allow null for backward compatibility
     crop_url: Optional[str] = None
     review_state: ReviewState
     created_at: datetime

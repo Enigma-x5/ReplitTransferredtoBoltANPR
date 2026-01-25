@@ -347,6 +347,9 @@ class RemoteInferenceDetector:
                 batch_frames = frame_paths[i:i + self.frame_batch_size]
                 batch_index = batch_count
 
+                # Track global frame indices for this batch
+                batch_global_indices = list(range(i, i + len(batch_frames)))
+
                 result = self._send_frame_batch(batch_frames, batch_index, camera_id or "unknown")
 
                 # Parse detections from response
@@ -354,7 +357,20 @@ class RemoteInferenceDetector:
 
                 # Yield detections in expected format
                 for frame_idx_str, detections_list in detections_by_frame.items():
-                    frame_idx = int(frame_idx_str)
+                    # Remote service returns batch-local index (0..batch_size-1)
+                    batch_local_idx = int(frame_idx_str)
+
+                    # Map back to global frame number
+                    if batch_local_idx >= len(batch_global_indices):
+                        logger.error(
+                            "REMOTE_FRAME_INDEX_OUT_OF_RANGE",
+                            batch_local_idx=batch_local_idx,
+                            batch_size=len(batch_global_indices),
+                            batch_index=batch_index
+                        )
+                        continue
+
+                    global_frame_no = batch_global_indices[batch_local_idx]
 
                     for detection_data in detections_list:
                         plate = detection_data.get("plate", "")
@@ -366,7 +382,7 @@ class RemoteInferenceDetector:
                             "normalized_plate": detection_data.get("normalized_plate") or normalize_plate(plate),
                             "confidence": confidence,
                             "bbox": bbox,
-                            "frame_no": frame_idx,
+                            "frame_no": global_frame_no,
                             "captured_at": datetime.utcnow(),
                             "crop": None,
                             "frame": None,
@@ -381,7 +397,8 @@ class RemoteInferenceDetector:
                             detection_idx=total_detections,
                             plate=plate,
                             confidence=confidence,
-                            frame_no=frame_idx,
+                            batch_local_idx=batch_local_idx,
+                            global_frame_no=global_frame_no,
                             batch_index=batch_index
                         )
 

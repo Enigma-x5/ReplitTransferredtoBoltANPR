@@ -54,13 +54,20 @@ async def process_job(job_data: dict):
 
             video_path = await download_video(job_data["storage_path"])
 
+            # Track event creation and skipping reasons
             events_count = 0
+            detections_total = 0
+            skipped_no_crop = 0
+
             for detection in detector.process_video(video_path, job_data.get("camera_id")):
+                detections_total += 1
                 event = await save_event(db, upload, detection)
                 if event:
                     events_count += 1
                     events_processed.inc()
                     await check_bolos(db, event)
+                else:
+                    skipped_no_crop += 1
 
             upload.status = UploadStatus.DONE
             upload.completed_at = datetime.utcnow()
@@ -70,7 +77,13 @@ async def process_job(job_data: dict):
             if video_path.startswith("/tmp"):
                 Path(video_path).unlink(missing_ok=True)
 
-            logger.info("Upload processed", job_id=job_id, events=events_count)
+            logger.info(
+                "Upload processed - Summary",
+                job_id=job_id,
+                events_created=events_count,
+                detections_total=detections_total,
+                skipped_no_crop=skipped_no_crop
+            )
             jobs_processed.inc()
 
         except Exception as e:
@@ -150,40 +163,64 @@ async def save_event(db: AsyncSession, upload: Upload, detection: dict) -> Event
 
     # Validate crop is a real numpy array with valid dimensions
     if not isinstance(crop_array, np.ndarray):
-        logger.error("DEBUG_CROP_INVALID_TYPE", job_id=job_id, frame_no=frame_no, crop_type=type(crop_array).__name__)
-        crop_path = None
-    elif crop_array.ndim != 3 or crop_array.shape[2] != 3:
-        logger.error("DEBUG_CROP_INVALID_SHAPE", job_id=job_id, frame_no=frame_no, shape=crop_array.shape)
-        crop_path = None
-    elif crop_array.shape[0] < 5 or crop_array.shape[1] < 5:
-        logger.error("DEBUG_CROP_TOO_SMALL", job_id=job_id, frame_no=frame_no, shape=crop_array.shape)
-        crop_path = None
-    else:
-        crop_min = int(crop_array.min())
-        crop_max = int(crop_array.max())
-
-        # DEBUG: Log crop stats before saving
-        logger.info(
-            "DEBUG_CROP_STATS",
+        logger.warning(
+            "SKIP_EVENT_NO_CROP_ARRAY",
             job_id=job_id,
             frame_no=frame_no,
-            crop_shape=crop_array.shape,
-            crop_dtype=str(crop_array.dtype),
-            crop_min=crop_min,
-            crop_max=crop_max
+            crop_type=type(crop_array).__name__,
+            plate=detection.get("plate", ""),
+            reason="crop is not numpy array"
         )
+        return None
+    elif crop_array.ndim != 3 or crop_array.shape[2] != 3:
+        logger.warning(
+            "SKIP_EVENT_INVALID_CROP_SHAPE",
+            job_id=job_id,
+            frame_no=frame_no,
+            shape=crop_array.shape,
+            plate=detection.get("plate", ""),
+            reason="crop has invalid dimensions"
+        )
+        return None
+    elif crop_array.shape[0] < 5 or crop_array.shape[1] < 5:
+        logger.warning(
+            "SKIP_EVENT_CROP_TOO_SMALL",
+            job_id=job_id,
+            frame_no=frame_no,
+            shape=crop_array.shape,
+            plate=detection.get("plate", ""),
+            reason="crop too small"
+        )
+        return None
 
-        # Check for solid color crop (indicates decode failure)
-        if crop_min == crop_max:
-            logger.error(
-                "DEBUG_CROP_SOLID_COLOR",
-                job_id=job_id,
-                frame_no=frame_no,
-                value=crop_min,
-                msg="Crop is solid color - likely decode failure"
-            )
+    crop_min = int(crop_array.min())
+    crop_max = int(crop_array.max())
 
-        # Convert BGR (OpenCV) to RGB (PIL) without cv2
+    # DEBUG: Log crop stats before saving
+    logger.info(
+        "DEBUG_CROP_STATS",
+        job_id=job_id,
+        frame_no=frame_no,
+        crop_shape=crop_array.shape,
+        crop_dtype=str(crop_array.dtype),
+        crop_min=crop_min,
+        crop_max=crop_max
+    )
+
+    # Check for solid color crop (indicates decode failure)
+    if crop_min == crop_max:
+        logger.warning(
+            "SKIP_EVENT_SOLID_COLOR_CROP",
+            job_id=job_id,
+            frame_no=frame_no,
+            value=crop_min,
+            plate=detection.get("plate", ""),
+            reason="crop is solid color - likely decode failure"
+        )
+        return None
+
+    # Convert BGR (OpenCV) to RGB (PIL) without cv2
+    try:
         crop_rgb = crop_array[..., ::-1].copy()
         img = Image.fromarray(crop_rgb.astype('uint8'))
 
@@ -197,7 +234,18 @@ async def save_event(db: AsyncSession, upload: Upload, detection: dict) -> Event
             crop_path,
             "image/jpeg"
         )
+    except Exception as e:
+        logger.warning(
+            "SKIP_EVENT_CROP_UPLOAD_FAILED",
+            job_id=job_id,
+            frame_no=frame_no,
+            plate=detection.get("plate", ""),
+            error=str(e),
+            reason="crop upload failed"
+        )
+        return None
 
+    # Only create event if crop_path is valid and upload succeeded
     event = Event(
         upload_id=upload.id,
         camera_id=detection["camera_id"] or upload.camera_id,
@@ -214,7 +262,7 @@ async def save_event(db: AsyncSession, upload: Upload, detection: dict) -> Event
     await db.commit()
     await db.refresh(event)
 
-    logger.info("Event saved", event_id=str(event.id), plate=event.plate)
+    logger.info("Event saved", event_id=str(event.id), plate=event.plate, crop_path=crop_path)
     return event
 
 

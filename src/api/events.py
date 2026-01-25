@@ -38,6 +38,9 @@ async def search_events(
     query = select(Event)
     conditions = []
 
+    # PHASE 10.1: Filter out events with null crop_path (temporary safety)
+    conditions.append(Event.crop_path.isnot(None))
+
     if plate:
         if normalized:
             conditions.append(Event.normalized_plate.ilike(f"%{plate}%"))
