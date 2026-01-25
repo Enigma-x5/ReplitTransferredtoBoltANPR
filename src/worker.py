@@ -54,20 +54,26 @@ async def process_job(job_data: dict):
 
             video_path = await download_video(job_data["storage_path"])
 
-            # Track event creation and skipping reasons
+            # Track event creation and skipping reasons with detailed counters
             events_count = 0
             detections_total = 0
-            skipped_no_crop = 0
+            skip_counters = {
+                "invalid_type": 0,
+                "invalid_dims": 0,
+                "too_small": 0,
+                "solid_color": 0,
+                "write_failed": 0,
+                "frame_missing": 0,
+            }
+            failed_samples = []  # Store first 3 failed crops for forensics
 
             for detection in detector.process_video(video_path, job_data.get("camera_id")):
                 detections_total += 1
-                event = await save_event(db, upload, detection)
+                event, skip_reason = await save_event(db, upload, detection, skip_counters, failed_samples)
                 if event:
                     events_count += 1
                     events_processed.inc()
                     await check_bolos(db, event)
-                else:
-                    skipped_no_crop += 1
 
             upload.status = UploadStatus.DONE
             upload.completed_at = datetime.utcnow()
@@ -77,13 +83,31 @@ async def process_job(job_data: dict):
             if video_path.startswith("/tmp"):
                 Path(video_path).unlink(missing_ok=True)
 
+            # Log comprehensive summary
+            total_skipped = sum(skip_counters.values())
             logger.info(
                 "Upload processed - Summary",
                 job_id=job_id,
                 events_created=events_count,
                 detections_total=detections_total,
-                skipped_no_crop=skipped_no_crop
+                total_skipped=total_skipped,
+                skipped_invalid_type=skip_counters["invalid_type"],
+                skipped_invalid_dims=skip_counters["invalid_dims"],
+                skipped_too_small=skip_counters["too_small"],
+                skipped_solid_color=skip_counters["solid_color"],
+                skipped_write_failed=skip_counters["write_failed"],
+                skipped_frame_missing=skip_counters["frame_missing"]
             )
+
+            # Log failed samples if any
+            if failed_samples:
+                logger.info(
+                    "Failed crop samples",
+                    job_id=job_id,
+                    sample_count=len(failed_samples),
+                    samples=failed_samples
+                )
+
             jobs_processed.inc()
 
         except Exception as e:
@@ -122,16 +146,39 @@ async def download_video(storage_path: str) -> str:
 _debug_frame_saved = {}
 
 
-async def save_event(db: AsyncSession, upload: Upload, detection: dict) -> Event:
+async def save_event(
+    db: AsyncSession,
+    upload: Upload,
+    detection: dict,
+    skip_counters: dict = None,
+    failed_samples: list = None
+) -> tuple[Event, str]:
     from PIL import Image
     import numpy as np
 
     job_id = str(upload.id)
     frame_no = detection.get("frame_no", 0)
+    bbox = detection.get("bbox", {})
     crop_path = f"crops/{upload.id}/{uuid.uuid4()}.jpg"
 
     crop_array = detection.get("crop")
     frame_array = detection.get("frame")
+
+    # Helper to track failed samples
+    def track_failure(reason: str, extra_info: dict = None):
+        if skip_counters is not None:
+            skip_counters[reason] = skip_counters.get(reason, 0) + 1
+
+        if failed_samples is not None and len(failed_samples) < 3:
+            sample = {
+                "frame_no": frame_no,
+                "bbox": bbox,
+                "reason": reason,
+                "plate": detection.get("plate", ""),
+            }
+            if extra_info:
+                sample.update(extra_info)
+            failed_samples.append(sample)
 
     # DEBUG: Log frame stats if frame is available
     if frame_array is not None and isinstance(frame_array, np.ndarray):
@@ -160,6 +207,7 @@ async def save_event(db: AsyncSession, upload: Upload, detection: dict) -> Event
                 logger.error("DEBUG_FULLFRAME_SAVE_FAILED", error=str(e))
     elif frame_array is None:
         logger.warning("DEBUG_FRAME_MISSING", job_id=job_id, frame_no=frame_no)
+        track_failure("frame_missing")
 
     # Validate crop is a real numpy array with valid dimensions
     if not isinstance(crop_array, np.ndarray):
@@ -171,8 +219,13 @@ async def save_event(db: AsyncSession, upload: Upload, detection: dict) -> Event
             plate=detection.get("plate", ""),
             reason="crop is not numpy array"
         )
-        return None
-    elif crop_array.ndim != 3 or crop_array.shape[2] != 3:
+        track_failure("invalid_type", {"crop_type": type(crop_array).__name__})
+        return (None, "invalid_type")
+
+    # Get crop dimensions
+    crop_height, crop_width = crop_array.shape[0], crop_array.shape[1]
+
+    if crop_array.ndim != 3 or crop_array.shape[2] != 3:
         logger.warning(
             "SKIP_EVENT_INVALID_CROP_SHAPE",
             job_id=job_id,
@@ -181,8 +234,14 @@ async def save_event(db: AsyncSession, upload: Upload, detection: dict) -> Event
             plate=detection.get("plate", ""),
             reason="crop has invalid dimensions"
         )
-        return None
-    elif crop_array.shape[0] < 5 or crop_array.shape[1] < 5:
+        track_failure("invalid_dims", {
+            "crop_shape": list(crop_array.shape),
+            "crop_width": crop_width,
+            "crop_height": crop_height
+        })
+        return (None, "invalid_dims")
+
+    if crop_height < 5 or crop_width < 5:
         logger.warning(
             "SKIP_EVENT_CROP_TOO_SMALL",
             job_id=job_id,
@@ -191,7 +250,13 @@ async def save_event(db: AsyncSession, upload: Upload, detection: dict) -> Event
             plate=detection.get("plate", ""),
             reason="crop too small"
         )
-        return None
+        track_failure("too_small", {
+            "crop_width": crop_width,
+            "crop_height": crop_height,
+            "bbox_width": bbox.get("x2", 0) - bbox.get("x1", 0),
+            "bbox_height": bbox.get("y2", 0) - bbox.get("y1", 0)
+        })
+        return (None, "too_small")
 
     crop_min = int(crop_array.min())
     crop_max = int(crop_array.max())
@@ -204,7 +269,9 @@ async def save_event(db: AsyncSession, upload: Upload, detection: dict) -> Event
         crop_shape=crop_array.shape,
         crop_dtype=str(crop_array.dtype),
         crop_min=crop_min,
-        crop_max=crop_max
+        crop_max=crop_max,
+        crop_width=crop_width,
+        crop_height=crop_height
     )
 
     # Check for solid color crop (indicates decode failure)
@@ -217,7 +284,12 @@ async def save_event(db: AsyncSession, upload: Upload, detection: dict) -> Event
             plate=detection.get("plate", ""),
             reason="crop is solid color - likely decode failure"
         )
-        return None
+        track_failure("solid_color", {
+            "solid_value": crop_min,
+            "crop_width": crop_width,
+            "crop_height": crop_height
+        })
+        return (None, "solid_color")
 
     # Convert BGR (OpenCV) to RGB (PIL) without cv2
     try:
@@ -243,7 +315,8 @@ async def save_event(db: AsyncSession, upload: Upload, detection: dict) -> Event
             error=str(e),
             reason="crop upload failed"
         )
-        return None
+        track_failure("write_failed", {"error": str(e)})
+        return (None, "write_failed")
 
     # Only create event if crop_path is valid and upload succeeded
     event = Event(
@@ -263,7 +336,7 @@ async def save_event(db: AsyncSession, upload: Upload, detection: dict) -> Event
     await db.refresh(event)
 
     logger.info("Event saved", event_id=str(event.id), plate=event.plate, crop_path=crop_path)
-    return event
+    return (event, None)
 
 
 async def check_bolos(db: AsyncSession, event: Event):
